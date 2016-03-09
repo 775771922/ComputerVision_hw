@@ -16,18 +16,6 @@ struct Position {
 	}
 };
 
-bool get_origin_pos(int x, int y, int ori_width, int ori_height, double theta, Position &pos) {
-	int ori_x = x*cos(theta) - y*sin(theta);
-	int ori_y = x*sin(theta) + y*cos(theta);
-	if (ori_x >= (0-ori_width/2) && ori_x <= ori_width/2 && ori_y >= (0-ori_height/2) && ori_y <= ori_height/2) {
-		pos.x = ori_x + ori_width/2;
-		pos.y = ori_y + ori_height/2;
-		return true;
-	} else {
-		return false;
-	}
-}
-
 bool get_origin_pos(int x, int y, int ori_width, int ori_height, double theta, 
 	                double& ori_x, double& ori_y) {
 	ori_x = (double)x * cos(theta) - (double)y * sin(theta);
@@ -58,7 +46,7 @@ int main() {
 	string file = "旋转、缩放图像1.bmp";
 
 	CImg<unsigned char> origin_img(file.c_str());
-	CImgDisplay old_disp(origin_img,"origin");
+	CImgDisplay old_disp(origin_img, "origin");
 
     int width = origin_img.width();
     int height = origin_img.height();
@@ -86,21 +74,11 @@ int main() {
 	   
 	    CImgDisplay new_disp(new_width, new_height, "new image");
 
-	    // for (int r = 0; r < new_height; r++) {
-	    // 	for (int c = 0; c < new_width; c++) {
-	    // 		Position origin(0,0);
-	    // 		if (get_origin_pos(c-delta_w, r-delta_h, width, height, theta, origin)) {
-	    // 			new_img(c, r, 0, 0) = origin_img(origin.x, origin.y, 0, 0);  // R
-	    // 			new_img(c, r, 0, 1) = origin_img(origin.x, origin.y, 0, 1);  // G
-	    // 			new_img(c, r, 0, 2) = origin_img(origin.x, origin.y, 0, 2);  // B
-	    // 		}
-	    // 	}
-	    // }
-
         double ori_x, ori_y, u, v;
 	    for (int r = 0; r < new_height; r++) {
 	    	for (int c = 0; c < new_width; c++) {
 	    		if (get_origin_pos(c-delta_w, r-delta_h, width, height, theta, ori_x, ori_y)) {
+	    			// 双线性插值减少锯齿
 	    			u = ori_x - (int)ori_x;
 	    			v = ori_y - (int)ori_y;
 	    			for (int channel = 0; channel < 3; channel++) {
@@ -130,6 +108,7 @@ int main() {
 	    }
 	    ++rotate_times;
     }
+    delete [] filename;
 
 	return 0;
 }
