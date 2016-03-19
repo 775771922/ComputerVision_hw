@@ -19,8 +19,11 @@ test: filter hough
 hough: CImg.h hough.cpp
 	$(CC) $(GG) -o hough.out hough.cpp
 
-filter: CImg.h filter.cpp
-	$(CC) $(GG) -o filter.out filter.cpp
+filter: hough CImg.h filter.cpp
+	$(CC) $(GG) -o filter.out filter.cpp hough.o
+
+hough: hough.h hough.cpp CImg.h
+	$(CC) $(GG) -c hough.cpp
 
 clean:
 	rm *.o *.out
