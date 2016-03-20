@@ -22,9 +22,6 @@ struct Position {
         this->y = y;
         this->sum = sum;
     }
-    // bool operator<(const Position& a, const Position &b) {
-    //     return a.sum >= b.sum;
-    // }
 };
 
 bool cmp(const Position& a, const Position& b) {
@@ -247,7 +244,6 @@ void draw_line(CImg<float> &img, int theta, int p) {
     for (int i = 0; i < width; i++) {
         for (int j = 0; j < height; j++) {
             double temp_p = (double)i * cos(PI*(theta)/180) + (double)j * sin(PI*(theta)/180);
-            //cout << temp_p << endl;
             if (p >= temp_p-0.5 && p <= temp_p+0.5) {
                 //cout << "i====>" << i << " j=====>" << j << endl;
                 for (int channel = 0; channel < 1; channel++) {

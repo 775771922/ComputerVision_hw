@@ -13,14 +13,17 @@ endif
 
 all: test
 
-test: filter hough
-	$(CC) $(GG) -o test ScaleOP.o RotateOP.o DrawOP.o test.cpp
-
-hough: CImg.h hough.cpp
-	$(CC) $(GG) -o hough.out hough.cpp
+test: canny hough
+	$(CC) $(GG) -o test main.cpp hough.o canny.o gaussian.o
 
 filter: hough CImg.h filter.cpp
 	$(CC) $(GG) -o filter.out filter.cpp hough.o
+
+canny: CImg.h canny.h canny.cpp gaussian hough
+	$(CC) $(GG) -c canny.cpp 
+
+gaussian: gaussian.h gaussian.cpp CImg.h
+	$(CC) $(GG) -c gaussian.cpp
 
 hough: hough.h hough.cpp CImg.h
 	$(CC) $(GG) -c hough.cpp
