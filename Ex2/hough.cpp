@@ -1,6 +1,7 @@
 #include "hough.h"
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 using namespace std;
 
@@ -31,6 +32,9 @@ void HoughTransform::draw_hough_space(int x, int y) {
 	for (int theta = 0; theta < minWidth; theta++) {
 		int p = (double)x * cos(PI*(double)theta/(double)halfCircle) + (double)y * sin(PI*(double)theta/(double)halfCircle);
 		if (p >= 0 && p < height) {
+			if (theta == 179 && p == 2422) {
+				cout << "(" << x << ", " << y << ")" << endl;
+			}
 			houghSpace(theta, p, 0, 0) = houghSpace(theta, p, 0, 0) + 1;
 		}
 	}
