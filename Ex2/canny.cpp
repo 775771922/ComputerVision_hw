@@ -1,7 +1,7 @@
 #include "canny.h"
 #include <cassert>
 
-#define DEBUG
+#define CANNY_DEBUG
 
 Canny::Canny(float sigma, int winSize, int firstDerWinSize)
      :gaussian(sigma, winSize, firstDerWinSize) {
@@ -22,7 +22,7 @@ CImg<float> Canny::detect_edge(CImg<float> &srcImg) {
 	CImg<float> nmsImg = non_maximun_suppression(gradientImg, dx, dy);
 	CImg<float> final = link_edge(nmsImg);
 
-	#ifdef DEBUG
+	#ifdef CANNY_DEBUG
 	//dx.save("dx.bmp");
 	//dy.save("dy.bmp");
 	//grayImg.save("grayImg.bmp");

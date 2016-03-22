@@ -14,7 +14,7 @@ endif
 all: test
 
 test: canny hough
-	$(CC) $(GG) -o test main.cpp hough.o canny.o gaussian.o
+	$(CC) $(GG) -o test test.cpp hough.o canny.o gaussian.o
 
 filter: hough CImg.h filter.cpp
 	$(CC) $(GG) -o filter.out filter.cpp hough.o

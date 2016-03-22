@@ -54,6 +54,7 @@ int main(int argc, char **argv) {
 	hough.draw_hough_space(cannyDetectImg);
 
 	CImg<float> houghSpace = hough.get_hough_space();
+    houghSpace.save("houghSpace.bmp");
 
     vector<Position> v;
     for (int i = 0; i < houghSpace.width(); i++) {
@@ -67,7 +68,7 @@ int main(int argc, char **argv) {
     cout << "v.size() =====> " << v.size() << endl;
     sort(v.begin(), v.end(), cmp);
 
-    int errorCount = 12;
+    int errorCount = 20;
     set<Position> s;
     for (int i = 0; i < errorCount; i++) {
     	s.insert(v[i]);
@@ -80,27 +81,32 @@ int main(int argc, char **argv) {
     int errorDis = 5;
     v.clear();
     vector<Position> cluster;
+    // set<Position>::iterator it;
+    // for (it = s.begin(); it != s.end(); ++it) {
+    // 	if (v.size() == 0) {
+    // 		v.push_back(*it);
+    // 	}
+    // 	Position p = *it;
+    // 	Position last = v[v.size()-1];
+    // 	if (fabs(sqrt(p.x*p.x+p.y*p.y) - sqrt(last.x*last.x+last.y*last.y)) <= errorDis) {
+    // 		v.push_back(p);
+    // 	} else {
+    // 		cluster.push_back(clusterPos(v));
+    // 		v.clear();
+    // 		v.push_back(p);
+    // 	}
+    // }
+
+    // cluster.push_back(clusterPos(v));
+
     set<Position>::iterator it;
     for (it = s.begin(); it != s.end(); ++it) {
-    	if (v.size() == 0) {
-    		v.push_back(*it);
-    	}
-    	Position p = *it;
-    	Position last = v[v.size()-1];
-    	if (fabs(sqrt(p.x*p.x+p.y*p.y) - sqrt(last.x*last.x+last.y*last.y)) <= errorDis) {
-    		v.push_back(p);
-    	} else {
-    		cluster.push_back(clusterPos(v));
-    		v.clear();
-    		v.push_back(p);
-    	}
+        cluster.push_back(*it);
     }
-
-    cluster.push_back(clusterPos(v));
 
     CImg<float> result(width, height, 1, 1, 0);
     for (int i = 0; i < cluster.size(); i++) {
-    	Position p =cluster[i];
+    	Position p = cluster[i];
     	draw_line(result, p.x, p.y);
     }
     result.save("result.bmp");
@@ -116,9 +122,6 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < width; i++) {
     	for (int j = 0; j < height; j++) {
-    		// if (final(i, j, 0, 0) <= 0) {
-    		// 	continue;
-    		// }
     		if (result(i, j, 0, 0) <= 0) {
     			continue;
     		}

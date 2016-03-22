@@ -1,5 +1,8 @@
 #include "hough.h"
 #include <cmath>
+#include <algorithm>
+
+using namespace std;
 
 HoughTransform::HoughTransform(int w, int h): houghSpace(w, h, 1, 1, 0), halfCircle(180) {
 	width = w;
@@ -24,8 +27,9 @@ void HoughTransform::draw_hough_space(const CImg<float> &srcImg) {
 }
 
 void HoughTransform::draw_hough_space(int x, int y) {
-	for (int theta = 0; theta < width; theta++) {
-		int p = (double)x * cos(PI*theta/(double)halfCircle) + (double)y * sin(PI*theta/(double)halfCircle);
+	int minWidth = 2*halfCircle;
+	for (int theta = 0; theta < minWidth; theta++) {
+		int p = (double)x * cos(PI*(double)theta/(double)halfCircle) + (double)y * sin(PI*(double)theta/(double)halfCircle);
 		if (p >= 0 && p < height) {
 			houghSpace(theta, p, 0, 0) = houghSpace(theta, p, 0, 0) + 1;
 		}
