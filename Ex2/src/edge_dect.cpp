@@ -92,7 +92,7 @@ CImg<float> EdgeDetect::detect_edge(const CImg<float> &houghSpace, const CImg<fl
     // 根据聚类的结果，选出投票数最高的四个点绘制结果图
     CImg<float> result(srcImg);
     multimap<int, Position>::reverse_iterator reverseIt = cluster.rbegin();
-    for (int count = 1; reverseIt != cluster.rend() && count <= 5; reverseIt++, count++) {
+    for (int count = 1; reverseIt != cluster.rend() && count <= 4; reverseIt++, count++) {
     	Position p = reverseIt->second;
         // 对检测到的直线标记红色
     	draw_result(result, p.x, p.y, 0);
