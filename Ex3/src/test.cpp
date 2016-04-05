@@ -2,7 +2,9 @@
 #include "gaussian.h"
 #include "canny.h"
 #include "hough.h"
-#include "edge_dect.h"
+#include "paper_corection.h"
+#include <vector>
+#include <cassert>
 using namespace cimg_library;
 using namespace std;
 
@@ -23,12 +25,14 @@ int main(int argc, char **argv) {
 	HoughTransform hough(360, diagonal);
 	hough.draw_hough_space(cannyDetectImg);
 
-    double rate = 0.5;
+    double rate = 0.4;
     int errorTheta = 10, errorP = 125;
-    EdgeDetect dect(rate, errorTheta, errorP);
+    PaperCorection dect(rate, errorTheta, errorP);
 
-    CImg<float> result = dect.detect_edge(hough.get_hough_space(), srcImg, cannyDetectImg);
-    result.save_jpeg("result.jpg");
+    vector<Position> result = dect.detect_edge(hough.get_hough_space(), srcImg, cannyDetectImg);
+    assert(result.size() == 4);
+
+
 
 }
 

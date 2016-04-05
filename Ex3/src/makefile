@@ -13,11 +13,11 @@ endif
 
 all: test
 
-test: global canny hough edge_dect
-	$(CC) $(GG) -o test test.cpp hough.o canny.o gaussian.o edge_dect.o global.o
+test: global canny hough paper_corection
+	$(CC) $(GG) -o test test.cpp hough.o canny.o gaussian.o paper_corection.o global.o
 
-edge_dect: CImg.h edge_dect.h edge_dect.cpp
-	$(CC) $(GG) -c edge_dect.cpp
+paper_corection: CImg.h paper_corection.h paper_corection.cpp
+	$(CC) $(GG) -c paper_corection.cpp
 
 canny: CImg.h canny.h canny.cpp gaussian hough
 	$(CC) $(GG) -c canny.cpp 

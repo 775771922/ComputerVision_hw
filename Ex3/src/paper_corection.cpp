@@ -1,19 +1,23 @@
-#include "edge_dect.h"
+#include "paper_corection.h"
 #include "global.h"
 #include <algorithm>
 #include <vector>
 #include <iostream>
 #include <map>
+#include <cassert>
 #include <fstream>
+#include <cmath>
 
-EdgeDetect::EdgeDetect(double r, int t, int p) {
+using namespace std;
+
+PaperCorection::PaperCorection(double r, int t, int p) {
 	this->rate = r;
 	this->errorTheta = t;
 	this->errorP = p;
 }
 
 
-CImg<float> EdgeDetect::detect_edge(const CImg<float> &houghSpace, const CImg<float> &srcImg, 
+vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, const CImg<float> &srcImg, 
 	const CImg<float> &cannyImg) {
     vector<Position> v;
     for (int i = 0; i < houghSpace.width(); i++) {
@@ -35,7 +39,7 @@ CImg<float> EdgeDetect::detect_edge(const CImg<float> &houghSpace, const CImg<fl
         }
     }
 
-    #ifdef EDGE_DECT_DEBUG
+    #ifdef PAPER_CORECTION_DEBUG
     int width = cannyImg.width();
     int height = cannyImg.height();
     CImg<float> o(width, height, 1, 1, 0);
@@ -63,10 +67,6 @@ CImg<float> EdgeDetect::detect_edge(const CImg<float> &houghSpace, const CImg<fl
             // 注意考虑角度的周期性
             if ((abs(p.x-v[i].x) <= errorTheta || abs(abs(p.x-v[i].x) - 360) <= errorTheta) 
             	&& abs(p.y-v[i].y) <= errorP) {
-            	#ifdef EDGE_DECT_DEBUG
-                fout << "merge===>*it :(" << v[i].x << ", " << v[i].y << ")\n";
-                fout << "     position:(" << p.x << ", " << p.y << ")\n";
-                #endif
                 cluster.erase(it);
                 if (abs(abs(p.x-v[i].x) - 360) <= errorTheta) {
                     Position newPos((p.x+v[i].x+360)/2, (p.y+v[i].y)/2, (p.sum+v[i].sum)/2);    
@@ -85,20 +85,88 @@ CImg<float> EdgeDetect::detect_edge(const CImg<float> &houghSpace, const CImg<fl
         }
     }
 
-    #ifdef EDGE_DECT_DEBUG
+    #ifdef PAPER_CORECTION_DEBUG
     print_map(cluster);
     #endif
 
+    #ifdef PAPER_CORECTION_DEBUG
     // 根据聚类的结果，选出投票数最高的四个点绘制结果图
     CImg<float> result(srcImg);
     multimap<int, Position>::reverse_iterator reverseIt = cluster.rbegin();
-    for (int count = 1; reverseIt != cluster.rend() && count <= 4; reverseIt++, count++) {
+    for (int count = 1; reverseIt != cluster.rend() && count <= 7; reverseIt++, count++) {
     	Position p = reverseIt->second;
         // 对检测到的直线标记红色
     	draw_result(result, p.x, p.y, 0);
+        result.display();
+    }
+    result.save_jpeg("result.jpg");
+    #endif
+
+    vector<Position> pos;
+    reverseIt = cluster.rbegin();
+    for (; reverseIt != cluster.rend(); reverseIt++) {
+        pos.push_back(reverseIt->second);
     }
 
-    return result;
+    #ifdef PAPER_CORECTION_DEBUG
+    CImg<float> r(srcImg);
+    vector<Position> newPos = detect_edge(pos);
+    cout << "newPos====>" << newPos.size() << endl;
+    for (int i = 0; i < newPos.size(); i++) {
+        cout << "(" << newPos[i].x << "," << newPos[i].y << ")" << endl;
+    }
+    for (int i = 0; i < newPos.size(); i++) {
+        draw_result(r, newPos[i].x, newPos[i].y, 0);
+        r.display();
+    }
+    r.save_jpeg("r.jpg");
+    #endif
+
+    return detect_edge(pos);
+}
+
+vector<Position> PaperCorection::detect_edge(vector<Position> &pos) {
+    assert(pos.size() >= 4);
+
+    cout << "detect edge=====>" << pos.size() << endl;
+    double thetaError = 10, verticalAngle = 90;
+    vector<Position> res;
+    // 默认投票数最高的点是正确的边缘
+    Position p1 = pos[0], p2;
+    res.push_back(p1);
+    int p2Index = 0;
+    // 找到与p1垂直的直线p2
+    for (int i = 1; i < pos.size(); i++) {
+        if ((abs(p1.x-pos[i].x) <= thetaError || abs(abs(p1.x-pos[i].x) - 360) <= thetaError)) {
+            continue;
+        }
+        if ((abs(p1.x-pos[i].x) >= 90-10 && abs(p1.x-pos[i].x) <= 90+10) ||
+            (abs(abs(p1.x-pos[i].x)-180) >= 90-10 && abs(abs(p1.x-pos[i].x)-180) <= 90+10)) {
+            p2 = pos[i];
+            p2Index = i;
+            break;
+        }
+    }
+    for (int i = 1; i < pos.size(); i++) {
+        if ((abs(p1.x-pos[i].x) <= thetaError || abs(abs(p1.x-pos[i].x) - 360) <= thetaError)) {
+            res.push_back(pos[i]);
+            break;
+        }
+    }
+    res.push_back(p2);
+    for (int i = 1; i < pos.size(); i++) {
+        if (i != p2Index && (abs(p2.x-pos[i].x) <= thetaError || abs(abs(p2.x-pos[i].x) - 360) <= thetaError)) {
+            res.push_back(pos[i]);
+            break;
+        }
+    }
+    return res;
+}
+
+vector<Position> PaperCorection::get_vertexs(const CImg<float> &houghSpace, const CImg<float> &srcImg, 
+    const CImg<float> &cannyImg) {
+    vector<Position> pos = detect_edge(houghSpace, srcImg, cannyImg);
+    
 }
 
 /**
@@ -108,7 +176,7 @@ CImg<float> EdgeDetect::detect_edge(const CImg<float> &houghSpace, const CImg<fl
 * theta, p: A4纸边缘直线的参数
 * channel: 绘制的色彩通道，主要是为了使标记的结果更明显
 */
-void EdgeDetect::draw_result(CImg<float> &img, int theta, int p, int channel) {
+void PaperCorection::draw_result(CImg<float> &img, int theta, int p, int channel) {
     int width = img.width();
     int height = img.height();
     for (int i = 0; i < width; i++) {
@@ -122,7 +190,7 @@ void EdgeDetect::draw_result(CImg<float> &img, int theta, int p, int channel) {
 } 
 
 // 调试用
-void EdgeDetect::draw_line(CImg<float> &img, int theta, int p) {
+void PaperCorection::draw_line(CImg<float> &img, int theta, int p) {
     int width = img.width();
     int height = img.height();
     int spectrum = img.spectrum();
@@ -139,7 +207,7 @@ void EdgeDetect::draw_line(CImg<float> &img, int theta, int p) {
 } 
 
 // 调试用
-void EdgeDetect::print_map(multimap<int, Position> &cluster) {
+void PaperCorection::print_map(multimap<int, Position> &cluster) {
     multimap<int, Position>::iterator it;
     for (it = cluster.begin(); it != cluster.end(); ++it) {
         Position p = it->second;

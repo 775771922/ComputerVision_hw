@@ -5,6 +5,7 @@ const double PI = 3.1415926;
 
 struct Position {
     int x, y, sum;
+    Position() {}
     Position(int x, int y, int sum) {
         this->x = x;
         this->y = y;
