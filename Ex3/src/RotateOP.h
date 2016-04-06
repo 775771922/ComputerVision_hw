@@ -2,14 +2,15 @@
 #define ROTATE_OP_H
 
 #include "CImg.h"
+#include "global.h"
 using namespace cimg_library;
 
 class RotateOP {
 public:
     // 旋转图片，旋转角为theta，并采用双线性插值减少锯齿
+    RotateOP() {};
     CImg<float> rotate_biliinear(const CImg<float>& srcImg, double theta);
-    RotateOP() {} ;
-
+    Position rotate_pos(const Position &srcPos, double theta, int width, int height);
 private:
 	// 获得旋转后图片的像素对应于原图的像素位置，用于双线性插值
 	bool get_origin_pos(int x, int y, int srcWidth, int srcHeight, double theta, 

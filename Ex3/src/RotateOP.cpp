@@ -10,6 +10,7 @@ using namespace std;
 */
 void RotateOP::biliinear_interpolation(CImg<float>& outImg, 
     	const CImg<float>& srcImg, double theta) {
+    int spectrum = srcImg.spectrum();
 	int newWidth = outImg.width(), newHeight = outImg.height();
 	int srcWidth = srcImg.width(), srcHeight = srcImg.height();
 	int halfW = newWidth / 2;
@@ -20,7 +21,7 @@ void RotateOP::biliinear_interpolation(CImg<float>& outImg,
     		if (get_origin_pos(c-halfW, r-halfH, srcWidth, srcHeight, theta, srcX, srcY)) {
     			u = srcX - (int)srcX;
     			v = srcY - (int)srcY;
-    			for (int channel = 0; channel < 3; channel++) {
+    			for (int channel = 0; channel < spectrum; channel++) {
     				outImg(c, r, 0, channel) = 
     				    (int)((1-u)*(1-v)*srcImg(valueWidth(srcX, srcWidth), valueHeight(srcY, srcHeight), 0, channel)
     					+(1-u)*v*srcImg(valueWidth(srcX, srcWidth), valueHeight(srcY+1, srcHeight), 0, channel)
@@ -98,7 +99,9 @@ int RotateOP::valueHeight(double srcY, int height) {
 }
 
 
-// 旋转图片，旋转角为theta，并采用双线性插值减少锯齿
+/* 旋转图片，旋转角为theta，并采用双线性插值减少锯齿
+*  默认逆时针方向
+*/
 CImg<float> RotateOP::rotate_biliinear(const CImg<float>& srcImg, double theta) {
 	int width = srcImg.width();
     int height = srcImg.height();
@@ -118,6 +121,17 @@ CImg<float> RotateOP::rotate_biliinear(const CImg<float>& srcImg, double theta) 
     biliinear_interpolation(newImg, srcImg, theta);
 
     return newImg;	
+}
+
+/**
+* 默认逆时针方向
+*/
+Position RotateOP::rotate_pos(const Position &srcPos, double theta, int width, int height) {
+    int srcX = srcPos.x, srcY = srcPos.y;
+    int halfW = width / 2, halfH = height / 2;
+    int x = (srcX-halfW) * cos(theta*PI/180) + (srcY-halfH) * sin(theta*PI/180),
+        y = (srcY-halfH) * cos(theta*PI/180) - (srcX-halfW) * sin(theta*PI/180);
+    return Position(x+halfW, y+halfH);
 }
 
 

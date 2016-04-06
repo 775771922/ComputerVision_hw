@@ -31,8 +31,8 @@ int main(int argc, char **argv) {
 
     //vector<Position> result = dect.detect_edge(hough.get_hough_space(), srcImg, cannyDetectImg);
     //assert(result.size() == 4);
-    dect.get_vertexs(hough.get_hough_space(), srcImg, cannyDetectImg);
-
+    //dect.get_vertexs(hough.get_hough_space(), srcImg, cannyDetectImg);
+    dect.get_standard_vertexs(hough.get_hough_space(), srcImg, cannyDetectImg);
 
 
 }

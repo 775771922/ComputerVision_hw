@@ -168,23 +168,26 @@ vector<Position> PaperCorection::get_vertexs(const CImg<float> &houghSpace, cons
     assert(pos.size() == 4);
     vector<Position> ret;
     if (abs(sin(pos[0].x)) <= 0.001 || abs(sin(pos[1].x)) <= 0.001) {
-        double x1 = pos[0].y / cos(pos[0].x), x2 = pos[1].y / cos(pos[1].x);
-        double y1 = (pos[2].y-x1*cos(pos[2].x))/sin(pos[2].x), y2 = (pos[3].y-x1*cos(pos[3].x))/sin(pos[3].x),
-               y3 = (pos[3].y-x2*cos(pos[3].x))/sin(pos[3].x), y4 = (pos[2].y-x2*cos(pos[2].x))/sin(pos[3].x);
+        double x1 = pos[0].y / cos(pos[0].x*PI/180), x2 = pos[1].y / cos(pos[1].x*PI/180);
+        double y1 = (pos[2].y-x1*cos(pos[2].x*PI/180))/sin(pos[2].x*PI/180), 
+               y2 = (pos[3].y-x1*cos(pos[3].x*PI/180))/sin(pos[3].x*PI/180),
+               y3 = (pos[3].y-x2*cos(pos[3].x*PI/180))/sin(pos[3].x*PI/180), 
+               y4 = (pos[2].y-x2*cos(pos[2].x*PI/180))/sin(pos[3].x*PI/180);
         ret.push_back(Position(x1, y1, 0));
         ret.push_back(Position(x1, y2, 0));
         ret.push_back(Position(x2, y3, 0));
         ret.push_back(Position(x2, y4, 0));
     } else if (abs(cos(pos[0].x)) <= 0.001 || abs(cos(pos[1].x)) <= 0.001) {
-        double y1 = pos[0].y / sin(pos[0].x), y2 = pos[1].y / sin(pos[1].x);
-        double x1 = (pos[2].y-y1*sin(pos[2].x))/cos(pos[2].x), x2 = (pos[3].y-y2*sin(pos[3].x))/cos(pos[3].x),
-               x3 = (pos[3].y-y2*sin(pos[3].x))/cos(pos[3].x), x4 = (pos[2].y-y1*sin(pos[2].x))/cos(pos[2].x);
+        double y1 = pos[0].y / sin(pos[0].x*PI/180), y2 = pos[1].y / sin(pos[1].x*PI/180);
+        double x1 = (pos[2].y-y1*sin(pos[2].x*PI/180))/cos(pos[2].x*PI/180), 
+               x2 = (pos[3].y-y2*sin(pos[3].x*PI/180))/cos(pos[3].x*PI/180),
+               x3 = (pos[3].y-y2*sin(pos[3].x*PI/180))/cos(pos[3].x*PI/180), 
+               x4 = (pos[2].y-y1*sin(pos[2].x*PI/180))/cos(pos[2].x*PI/180);
         ret.push_back(Position(x1, y1, 0));
         ret.push_back(Position(x2, y1, 0));
         ret.push_back(Position(x3, y2, 0));
         ret.push_back(Position(x4, y2, 0));
     } else {
-        cout << "else" << endl;
         double b1 = pos[0].y/sin(pos[0].x*PI/180), k1 = cos(pos[0].x*PI/180)/sin(pos[0].x*PI/180),
                b2 = pos[1].y/sin(pos[1].x*PI/180), k2 = cos(pos[1].x*PI/180)/sin(pos[1].x*PI/180),
                b3 = pos[2].y/sin(pos[2].x*PI/180), k3 = cos(pos[2].x*PI/180)/sin(pos[2].x*PI/180),
@@ -206,9 +209,91 @@ vector<Position> PaperCorection::get_vertexs(const CImg<float> &houghSpace, cons
         draw_point(temp, ret[i]);
         temp.display();
     }
-    temp.save_jpeg("temp.jpg");
+    temp.save_jpeg("t1.jpg");
     #endif
     return ret;
+}
+
+vector<Position> PaperCorection::get_standard_vertexs(const CImg<float> &houghSpace, 
+    const CImg<float> &srcImg, const CImg<float> &cannyImg) {
+    vector<Position> v = get_vertexs(houghSpace, srcImg, cannyImg);
+    assert(v.size() == 4);
+    vector<Position> ret(4, Position(-1,-1));
+    Position p = v[0];
+    int minIndex = 0;
+    for (int i = 1; i < v.size(); i++) {
+        if ((v[i].x*v[i].x+v[i].y*v[i].y) < p.x*p.x+p.y*p.y) {
+            minIndex = i;
+            p = v[i];
+        }
+    }
+    cout << "minIndex==>" << minIndex << "  " << "(" << p.x << "," << p.y << ")" << endl;
+    int neighbor1 = minIndex+1 >= v.size() ? 0 : minIndex+1,
+        neighbor2 = minIndex-1 < 0 ? v.size()-1 : minIndex-1;
+    double l1 = sqrt((v[minIndex].x-v[neighbor1].x)*(v[minIndex].x-v[neighbor1].x)+
+        (v[minIndex].y-v[neighbor1].y)*(v[minIndex].y-v[neighbor1].y));
+    double l2 = sqrt((v[minIndex].x-v[neighbor2].x)*(v[minIndex].x-v[neighbor2].x)+
+        (v[minIndex].y-v[neighbor2].y)*(v[minIndex].y-v[neighbor2].y));
+    // if (l1 >= l2) {
+    //     l1 = sqrt(2)*l2;
+    // } else {
+    //     l2 = sqrt(2)*l1;
+    // }
+
+    int neighbor3 = (minIndex+2) % v.size();
+    if ((v[neighbor3].x-v[neighbor1].x)*(v[neighbor3].x-v[neighbor2].x) < 0) {
+        assert(v[neighbor1].x != v[neighbor2].x);
+        if (v[neighbor1].x > v[neighbor2].x) {
+            ret[neighbor1] = Position(v[minIndex].x+l1, v[minIndex].y);
+            ret[neighbor2] = Position(v[minIndex].x, v[minIndex].y+l2);
+            ret[neighbor3] = Position(v[minIndex].x+l1, v[minIndex].y+l2);
+        } else {
+            ret[neighbor1] = Position(v[minIndex].x, v[minIndex].y+l1);
+            ret[neighbor2] = Position(v[minIndex].x+l2, v[minIndex].y);
+            ret[neighbor3] = Position(v[minIndex].x+l2, v[minIndex].y+l1);
+        }
+    } else if ((v[neighbor3].x-v[neighbor1].x)*(v[neighbor3].x-v[neighbor2].x) > 0) {
+        assert(v[neighbor1].y != v[neighbor2].y);
+        if (v[neighbor1].y > v[neighbor2].y) {
+            ret[neighbor1] = Position(v[minIndex].x+l1, v[minIndex].y);
+            ret[neighbor2] = Position(v[minIndex].x, v[minIndex].y+l2);
+            ret[neighbor3] = Position(v[minIndex].x+l1, v[minIndex].y+l2);
+        } else {
+            ret[neighbor1] = Position(v[minIndex].x, v[minIndex].y+l1);
+            ret[neighbor2] = Position(v[minIndex].x+l2, v[minIndex].y);
+            ret[neighbor3] = Position(v[minIndex].x+l2, v[minIndex].y+l1);
+        }
+    }
+    ret[minIndex] = v[minIndex];
+
+
+    #ifdef PAPER_CORECTION_DEBUG
+    cout << "l1===>" << l1 << "   l2===>" << l2 << endl;
+    CImg<float> temp(srcImg);
+    for (int i = 0; i < ret.size(); i++) {
+        cout << "(" << ret[i].x << "," << ret[i].y << ")\n";
+        draw_point(temp, ret[i]);
+        temp.display();
+    }
+    temp.save_jpeg("t2.jpg");
+    #endif
+
+    return ret;
+}
+
+CImg<float> PaperCorection::image_wrap(vector<Position> &v, vector<Position> &s, CImg<float> &srcImg) {
+    double a[4], b[4];
+    double c[3], d[3];
+    c[0] = v[0].y - v[1].y - (v[0].y-v[2].y)*(v[0].x-v[1].x)/(double)(v[0].x-v[2].x);
+    c[1] = v[0].x*v[0].y - v[1].x*v[1].y - (v[0].x*v[0].y-v[2].x*v[2].y)*(v[0].x-v[1].x)/(double)(v[0].x-v[2].x);
+    c[2] = s[0].x - s[1].x - (s[0].x-s[2].x)*(v[0].x-v[1].x)/(double)(v[0].x-v[2].x);
+    d[0] = v[0].y - v[1].y - (v[0].y-v[3].y)*(v[0].x-v[1].x)/(double)(v[0].x-v[3].x);
+    d[1] = v[0].x*v[0].y - v[1].x*v[1].y - (v[0].x*v[0].y-v[3].x*v[3].y)*(v[0].x-v[1].x)/(double)(v[0].x-v[3].x);
+    d[2] = s[0].x - s[1].x - (s[0].x-s[3].x)*(v[0].x-v[1].x)/(double)(v[0].x-v[3].x);
+    a[3] = (d[0]*c[2]-d[2]*c[0]) / (d[0]*c[1]-d[1]*c[0]);
+    a[2] = (c[2] - c[1]*a[3]) / c[0];
+    a[1] = (s[1].x - v[1].x*v[1].y*a[3] - v[1].y*a[2] - a[0]) / (double)v[1].x;
+    a[0] = s[0].x - v[0].x*v[0].y*a[3] - v[0].y*a[2] - v[0].x*a[1];
 }
 
 /**

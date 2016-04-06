@@ -27,7 +27,9 @@ public:
 	            const CImg<float> &cannyImg);
 	vector<Position> get_vertexs(const CImg<float> &houghSpace, const CImg<float> &srcImg, 
 	            const CImg<float> &cannyImg);
-
+    vector<Position> get_standard_vertexs(const CImg<float> &houghSpace, const CImg<float> &srcImg, 
+                const CImg<float> &cannyImg);
+    CImg<float> image_wrap(vector<Position> &vertexs, vector<Position> &standard, CImg<float> &srcImg);
 };
 
 #endif
