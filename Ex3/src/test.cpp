@@ -29,8 +29,9 @@ int main(int argc, char **argv) {
     int errorTheta = 10, errorP = 125;
     PaperCorection dect(rate, errorTheta, errorP);
 
-    vector<Position> result = dect.detect_edge(hough.get_hough_space(), srcImg, cannyDetectImg);
-    assert(result.size() == 4);
+    //vector<Position> result = dect.detect_edge(hough.get_hough_space(), srcImg, cannyDetectImg);
+    //assert(result.size() == 4);
+    dect.get_vertexs(hough.get_hough_space(), srcImg, cannyDetectImg);
 
 
 

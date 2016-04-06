@@ -18,6 +18,7 @@ private:
 	void draw_line(CImg<float> &img, int theta, int p);
     void print_map(multimap<int, Position> &cluster);
     void draw_result(CImg<float> &img, int theta, int p, int channel);
+    void draw_point(CImg<float> &img, const Position &p);
     vector<Position> detect_edge(vector<Position> &pos);
 public:
 	PaperCorection(double r, int t, int p);
