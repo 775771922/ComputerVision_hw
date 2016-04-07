@@ -347,7 +347,7 @@ CImg<float> PaperCorection::image_wrap(vector<Position> &v, vector<Position> &s,
     a[0] = u0-x0*y0*a[3]-y0*a[2]-x0*a[1];
 
     double e[3], f[3];
-    e[0] = y0-y1-(y0-y2)*(x0-x1)/(x0-x2);
+    e[0] = y0-y1-(y0-y2)*(x0-x1)/(x0-x2); 
     e[1] = x0*y0-x1*y1-(x0*y0-x2*y2)*(x0-x1)/(x0-x2);
     e[2] = v0-v1-(v0-v2)*(x0-x1)/(x0-x2);
     f[0] = y0-y1-(y0-y3)*(x0-x1)/(x0-x3);
