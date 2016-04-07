@@ -39,18 +39,18 @@ vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, cons
         }
     }
 
-    #ifdef PAPER_CORECTION_DEBUG
-    int width = cannyImg.width();
-    int height = cannyImg.height();
-    CImg<float> o(width, height, 1, 1, 0);
-    ofstream fout("set.txt");
-    for (int i = 0; i < v.size(); i++) {
-        Position p = v[i];
-        fout << "(" << p.x << ", " << p.y << ")" << " " << p.sum << "\n";
-        draw_line(o, p.x, p.y);
-    }
-    o.save_jpeg("o.jpg");
-    #endif
+    // #ifdef PAPER_CORECTION_DEBUG
+    // int width = cannyImg.width();
+    // int height = cannyImg.height();
+    // CImg<float> o(width, height, 1, 1, 0);
+    // ofstream fout("set.txt");
+    // for (int i = 0; i < v.size(); i++) {
+    //     Position p = v[i];
+    //     fout << "(" << p.x << ", " << p.y << ")" << " " << p.sum << "\n";
+    //     draw_line(o, p.x, p.y);
+    // }
+    // o.save_jpeg("o.jpg");
+    // #endif
 
     // 对hough空间中剩余的点按照误差值进行聚类，聚类后的点放在cluster里面
     multimap<int, Position> cluster;
@@ -89,18 +89,18 @@ vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, cons
     print_map(cluster);
     #endif
 
-    #ifdef PAPER_CORECTION_DEBUG
-    // 根据聚类的结果，选出投票数最高的四个点绘制结果图
-    CImg<float> result(srcImg);
-    multimap<int, Position>::reverse_iterator reverseIt = cluster.rbegin();
-    for (int count = 1; reverseIt != cluster.rend() && count <= 7; reverseIt++, count++) {
-    	Position p = reverseIt->second;
-        // 对检测到的直线标记红色
-    	draw_result(result, p.x, p.y, 0);
-        result.display();
-    }
-    result.save_jpeg("result.jpg");
-    #endif
+    // #ifdef PAPER_CORECTION_DEBUG
+    // // 根据聚类的结果，选出投票数最高的四个点绘制结果图
+    // CImg<float> result(srcImg);
+     multimap<int, Position>::reverse_iterator reverseIt = cluster.rbegin();
+    // for (int count = 1; reverseIt != cluster.rend() && count <= 7; reverseIt++, count++) {
+    // 	Position p = reverseIt->second;
+    //     // 对检测到的直线标记红色
+    // 	draw_result(result, p.x, p.y, 0);
+    //     result.display();
+    // }
+    // result.save_jpeg("result.jpg");
+    // #endif
 
     vector<Position> pos;
     for (reverseIt = cluster.rbegin(); reverseIt != cluster.rend(); reverseIt++) {
@@ -166,41 +166,57 @@ vector<Position> PaperCorection::get_vertexs(const CImg<float> &houghSpace, cons
     const CImg<float> &cannyImg) {
     vector<Position> pos = detect_edge(houghSpace, srcImg, cannyImg);
     assert(pos.size() == 4);
+
     vector<Position> ret;
-    if (abs(sin(pos[0].x)) <= 0.001 || abs(sin(pos[1].x)) <= 0.001) {
-        double x1 = pos[0].y / cos(pos[0].x*PI/180), x2 = pos[1].y / cos(pos[1].x*PI/180);
-        double y1 = (pos[2].y-x1*cos(pos[2].x*PI/180))/sin(pos[2].x*PI/180), 
-               y2 = (pos[3].y-x1*cos(pos[3].x*PI/180))/sin(pos[3].x*PI/180),
-               y3 = (pos[3].y-x2*cos(pos[3].x*PI/180))/sin(pos[3].x*PI/180), 
-               y4 = (pos[2].y-x2*cos(pos[2].x*PI/180))/sin(pos[3].x*PI/180);
-        ret.push_back(Position(x1, y1, 0));
-        ret.push_back(Position(x1, y2, 0));
-        ret.push_back(Position(x2, y3, 0));
-        ret.push_back(Position(x2, y4, 0));
-    } else if (abs(cos(pos[0].x)) <= 0.001 || abs(cos(pos[1].x)) <= 0.001) {
-        double y1 = pos[0].y / sin(pos[0].x*PI/180), y2 = pos[1].y / sin(pos[1].x*PI/180);
-        double x1 = (pos[2].y-y1*sin(pos[2].x*PI/180))/cos(pos[2].x*PI/180), 
-               x2 = (pos[3].y-y2*sin(pos[3].x*PI/180))/cos(pos[3].x*PI/180),
-               x3 = (pos[3].y-y2*sin(pos[3].x*PI/180))/cos(pos[3].x*PI/180), 
-               x4 = (pos[2].y-y1*sin(pos[2].x*PI/180))/cos(pos[2].x*PI/180);
-        ret.push_back(Position(x1, y1, 0));
-        ret.push_back(Position(x2, y1, 0));
-        ret.push_back(Position(x3, y2, 0));
-        ret.push_back(Position(x4, y2, 0));
-    } else {
-        double b1 = pos[0].y/sin(pos[0].x*PI/180), k1 = cos(pos[0].x*PI/180)/sin(pos[0].x*PI/180),
-               b2 = pos[1].y/sin(pos[1].x*PI/180), k2 = cos(pos[1].x*PI/180)/sin(pos[1].x*PI/180),
-               b3 = pos[2].y/sin(pos[2].x*PI/180), k3 = cos(pos[2].x*PI/180)/sin(pos[2].x*PI/180),
-               b4 = pos[3].y/sin(pos[3].x*PI/180), k4 = cos(pos[3].x*PI/180)/sin(pos[3].x*PI/180);
-        double x1 = (b3-b1)/(k3-k1), y1 = b1-k1*x1,
-               x2 = (b4-b1)/(k4-k1), y2 = b1-k1*x2,
-               x3 = (b4-b2)/(k4-k2), y3 = b2-k2*x3,
-               x4 = (b3-b2)/(k3-k2), y4 = b2-k2*x4;
-        ret.push_back(Position(x1, y1, 0));
-        ret.push_back(Position(x2, y2, 0));
-        ret.push_back(Position(x3, y3, 0));
-        ret.push_back(Position(x4, y4, 0));
+    double x1 = -1, x2 = -1, x3 = -1, x4 = -1, y1 = -1, y2 = -1, y3 = -1, y4 = -1;
+    double b1 = pos[0].y/sin(pos[0].x*PI/180), k1 = cos(pos[0].x*PI/180)/sin(pos[0].x*PI/180),
+           b2 = pos[1].y/sin(pos[1].x*PI/180), k2 = cos(pos[1].x*PI/180)/sin(pos[1].x*PI/180),
+           b3 = pos[2].y/sin(pos[2].x*PI/180), k3 = cos(pos[2].x*PI/180)/sin(pos[2].x*PI/180),
+           b4 = pos[3].y/sin(pos[3].x*PI/180), k4 = cos(pos[3].x*PI/180)/sin(pos[3].x*PI/180);
+
+    // pos[0]-pos[3]分别对应l1,l2,l3,l4, 函数detect_edge已经确保l1//l2, l3//l4
+    if (abs(pos[0].x)<5 || abs(pos[0].x-180)<5) { // l1垂直
+        x1 = x2 = pos[0].y / cos(pos[0].x*PI/180);
+        y1 = (pos[2].y - x1*cos(pos[2].x*PI/180)) / sin(pos[2].x*PI/180);
+        y2 = (pos[3].y - x1*cos(pos[3].x*PI/180)) / sin(pos[3].x*PI/180);
     }
+    if (abs(pos[1].x)<5 || abs(pos[1].x-180)<5) { // l2垂直
+        x3 = x4 = pos[1].y / cos(pos[1].x*PI/180);
+        y3 = (pos[3].y - x3*cos(pos[3].x*PI/180)) / sin(pos[3].x*PI/180);
+        y4 = (pos[2].y - x3*cos(pos[2].x*PI/180)) / sin(pos[2].x*PI/180);
+    }
+    if (abs(pos[2].x)<5 || abs(pos[2].x-180)<5) {// l3垂直
+        x1 = x4 = pos[2].y / cos(pos[2].x*PI/180);
+        y1 = (pos[0].y - x1*cos(pos[0].x*PI/180)) / sin(pos[0].x*PI/180);
+        y4 = (pos[1].y - x1*cos(pos[1].x*PI/180)) / sin(pos[1].x*PI/180);
+    }
+    if (abs(pos[3].x)<5 || abs(pos[3].x-180)<5) {// l4垂直
+        x2 = x3 = pos[3].y / cos(pos[3].x*PI/180);
+        y2 = (pos[0].y - x2*cos(pos[0].x*PI/180)) / sin(pos[0].x*PI/180);
+        y3 = (pos[1].y - x2*cos(pos[1].x*PI/180)) / sin(pos[1].x*PI/180);    
+    }
+    if (x1 == -1) {
+        x1 = (b1-b3) / (k1-k3);
+        y1 = b1 - k1*x1;
+    }
+    if (x2 == -1) {
+        x2 = (b1-b4) / (k1-k4);
+        y2 = b1 - k1*x2;
+    }
+    if (x3 == -1) {
+        x3 = (b2-b4) / (k2-k4);
+        y3 = b2 - k2*x3;
+    }
+    if (x4 == -1) {
+        x4 = (b2-b3) / (k2-k3);
+        y4 = b2 - k2*x4;
+    }
+
+    ret.push_back(Position(x1, y1));
+    ret.push_back(Position(x2, y2));
+    ret.push_back(Position(x3, y3));
+    ret.push_back(Position(x4, y4));
+
 
     #ifdef PAPER_CORECTION_DEBUG
     CImg<float> temp(srcImg);
@@ -213,6 +229,8 @@ vector<Position> PaperCorection::get_vertexs(const CImg<float> &houghSpace, cons
     #endif
     return ret;
 }
+
+
 
 vector<Position> PaperCorection::get_standard_vertexs(const CImg<float> &houghSpace, 
     const CImg<float> &srcImg, const CImg<float> &cannyImg) {
@@ -227,21 +245,27 @@ vector<Position> PaperCorection::get_standard_vertexs(const CImg<float> &houghSp
             p = v[i];
         }
     }
-    cout << "minIndex==>" << minIndex << "  " << "(" << p.x << "," << p.y << ")" << endl;
+    
     int neighbor1 = minIndex+1 >= v.size() ? 0 : minIndex+1,
         neighbor2 = minIndex-1 < 0 ? v.size()-1 : minIndex-1;
     double l1 = sqrt((v[minIndex].x-v[neighbor1].x)*(v[minIndex].x-v[neighbor1].x)+
         (v[minIndex].y-v[neighbor1].y)*(v[minIndex].y-v[neighbor1].y));
     double l2 = sqrt((v[minIndex].x-v[neighbor2].x)*(v[minIndex].x-v[neighbor2].x)+
         (v[minIndex].y-v[neighbor2].y)*(v[minIndex].y-v[neighbor2].y));
-    // if (l1 >= l2) {
-    //     l1 = sqrt(2)*l2;
-    // } else {
-    //     l2 = sqrt(2)*l1;
-    // }
+    if (l1 >= l2) {
+        l2 = l1/sqrt(2);
+    } else {
+        l1 = l2/sqrt(2);
+    }
 
     int neighbor3 = (minIndex+2) % v.size();
-    if ((v[neighbor3].x-v[neighbor1].x)*(v[neighbor3].x-v[neighbor2].x) < 0) {
+    
+    cout << "neighbor1====>" << neighbor1 << endl;
+    cout << "neighbor2====>" << neighbor2 << endl;
+    cout << "neighbor3====>" << neighbor3 << endl;
+
+    if ((v[neighbor3].x-v[neighbor1].x)*(v[neighbor3].x-v[neighbor2].x) < 0) { // neighbor1,2在3的两侧
+        cout << "if" << endl;
         assert(v[neighbor1].x != v[neighbor2].x);
         if (v[neighbor1].x > v[neighbor2].x) {
             ret[neighbor1] = Position(v[minIndex].x+l1, v[minIndex].y);
@@ -252,7 +276,8 @@ vector<Position> PaperCorection::get_standard_vertexs(const CImg<float> &houghSp
             ret[neighbor2] = Position(v[minIndex].x+l2, v[minIndex].y);
             ret[neighbor3] = Position(v[minIndex].x+l2, v[minIndex].y+l1);
         }
-    } else if ((v[neighbor3].x-v[neighbor1].x)*(v[neighbor3].x-v[neighbor2].x) > 0) {
+    } else if ((v[neighbor3].x-v[neighbor1].x)*(v[neighbor3].x-v[neighbor2].x) > 0) { // neighbor1,2在3的同侧
+        cout << "else if" << endl;
         assert(v[neighbor1].y != v[neighbor2].y);
         if (v[neighbor1].y > v[neighbor2].y) {
             ret[neighbor1] = Position(v[minIndex].x+l1, v[minIndex].y);
@@ -263,6 +288,17 @@ vector<Position> PaperCorection::get_standard_vertexs(const CImg<float> &houghSp
             ret[neighbor2] = Position(v[minIndex].x+l2, v[minIndex].y);
             ret[neighbor3] = Position(v[minIndex].x+l2, v[minIndex].y+l1);
         }
+    } else { // neighbor1或2与3在同一垂线上
+        cout << "else" << endl;
+        if (v[neighbor1].x == v[neighbor3].x) {
+            ret[neighbor1] = Position(v[minIndex].x+l1, v[minIndex].y);
+            ret[neighbor2] = Position(v[minIndex].x, v[minIndex].y+l2);
+            ret[neighbor3] = Position(v[minIndex].x+l1, v[minIndex].y+l2);            
+        } else {
+            ret[neighbor1] = Position(v[minIndex].x, v[minIndex].y+l1);
+            ret[neighbor2] = Position(v[minIndex].x+l2, v[minIndex].y);
+            ret[neighbor3] = Position(v[minIndex].x+l2, v[minIndex].y+l1);         
+        }
     }
     ret[minIndex] = v[minIndex];
 
@@ -271,11 +307,21 @@ vector<Position> PaperCorection::get_standard_vertexs(const CImg<float> &houghSp
     cout << "l1===>" << l1 << "   l2===>" << l2 << endl;
     CImg<float> temp(srcImg);
     for (int i = 0; i < ret.size(); i++) {
-        cout << "(" << ret[i].x << "," << ret[i].y << ")\n";
         draw_point(temp, ret[i]);
         temp.display();
     }
     temp.save_jpeg("t2.jpg");
+
+    ofstream fout("vertex.txt");
+    fout << "vertex====>" << endl;
+    for (int i = 0; i < v.size(); i++) {
+        fout << "(" << v[i].x << "," << v[i].y << ")" << endl;
+    }
+    fout << "standard===>" << endl;
+    for (int i = 0; i < ret.size(); i++) {
+        fout << "(" << ret[i].x << "," << ret[i].y << ")" << endl;
+    }
+    fout.close();
     #endif
 
     return ret;
@@ -284,16 +330,102 @@ vector<Position> PaperCorection::get_standard_vertexs(const CImg<float> &houghSp
 CImg<float> PaperCorection::image_wrap(vector<Position> &v, vector<Position> &s, CImg<float> &srcImg) {
     double a[4], b[4];
     double c[3], d[3];
-    c[0] = v[0].y - v[1].y - (v[0].y-v[2].y)*(v[0].x-v[1].x)/(double)(v[0].x-v[2].x);
-    c[1] = v[0].x*v[0].y - v[1].x*v[1].y - (v[0].x*v[0].y-v[2].x*v[2].y)*(v[0].x-v[1].x)/(double)(v[0].x-v[2].x);
-    c[2] = s[0].x - s[1].x - (s[0].x-s[2].x)*(v[0].x-v[1].x)/(double)(v[0].x-v[2].x);
-    d[0] = v[0].y - v[1].y - (v[0].y-v[3].y)*(v[0].x-v[1].x)/(double)(v[0].x-v[3].x);
-    d[1] = v[0].x*v[0].y - v[1].x*v[1].y - (v[0].x*v[0].y-v[3].x*v[3].y)*(v[0].x-v[1].x)/(double)(v[0].x-v[3].x);
-    d[2] = s[0].x - s[1].x - (s[0].x-s[3].x)*(v[0].x-v[1].x)/(double)(v[0].x-v[3].x);
-    a[3] = (d[0]*c[2]-d[2]*c[0]) / (d[0]*c[1]-d[1]*c[0]);
-    a[2] = (c[2] - c[1]*a[3]) / c[0];
-    a[1] = (s[1].x - v[1].x*v[1].y*a[3] - v[1].y*a[2] - a[0]) / (double)v[1].x;
-    a[0] = s[0].x - v[0].x*v[0].y*a[3] - v[0].y*a[2] - v[0].x*a[1];
+    double x0 = v[0].x, x1 = v[1].x, x2 = v[2].x, x3 = v[3].x,
+           y0 = v[0].y, y1 = v[1].y, y2 = v[2].y, y3 = v[3].y,
+           u0 = s[0].x, u1 = s[1].x, u2 = s[2].x, u3 = s[3].x,
+           v0 = s[0].y, v1 = s[1].y, v2 = s[2].y, v3 = s[3].y;
+    c[0] = y0-y1-(y0-y2)*(x0-x1)/(x0-x2);
+    c[1] = x0*y0-x1*y1-(x0*y0-x2*y2)*(x0-x1)/(x0-x2);
+    c[2] = u0-u1-(u0-u2)*(x0-x1)/(x0-x2);
+    d[0] = y0-y1-(y0-y3)*(x0-x1)/(x0-x3);
+    d[1] = x0*y0-x1*y1-(x0*y0-x3*y3)*(x0-x1)/(x0-x3);
+    d[2] = u0-u1-(u0-u3)*(x0-x1)/(x0-x3);
+
+    a[3] = (c[2]*d[0]-d[2]*c[0])/(c[1]*d[0]-d[1]*c[0]);
+    a[2] = (c[2]-c[1]*a[3])/c[0];
+    a[1] = (u0-u1-(x0*y0-x1*y1)*a[3]-(y0-y1)*a[2])/(x0-x1);
+    a[0] = u0-x0*y0*a[3]-y0*a[2]-x0*a[1];
+
+    double e[3], f[3];
+    e[0] = y0-y1-(y0-y2)*(x0-x1)/(x0-x2);
+    e[1] = x0*y0-x1*y1-(x0*y0-x2*y2)*(x0-x1)/(x0-x2);
+    e[2] = v0-v1-(v0-v2)*(x0-x1)/(x0-x2);
+    f[0] = y0-y1-(y0-y3)*(x0-x1)/(x0-x3);
+    f[1] = x0*y0-x1*y1-(x0*y0-x3*y3)*(x0-x1)/(x0-x3);
+    f[2] = v0-v1-(v0-v3)*(x0-x1)/(x0-x3);
+
+    b[3] = (e[2]*f[0]-e[0]*f[2])/(e[1]*f[0]-e[0]*f[1]);
+    b[2] = (e[2]-e[1]*b[3])/e[0];
+    b[1] = (v0-v1-(x0*y0-x1*y1)*b[3]-(y0-y1)*b[2])/(x0-x1);
+    b[0] = v0-x0*y0*b[3]-y0*b[2]-x0*b[1];
+
+    cout << "a[i]" << endl;
+    for (int i = 0; i < 4; i++) {
+        cout << a[i] << " ";
+    }
+    cout << endl;
+    cout << "b[i]" << endl;
+    for (int i = 0; i < 4; i++) {
+        cout << b[i] << " ";
+    }
+    cout << endl;
+
+    int width = srcImg.width(), height = srcImg.height(), spectrum = srcImg.spectrum();
+    Position lt(a[0], b[0]), lb(a[0]+a[2]*(height-1), b[0]+b[2]*(height-1)),
+             rt(a[0]+a[1]*(width-1), b[0]+b[1]*(width-1)), 
+             rb(a[0]+(a[1]*width-1)+a[2]*(height-1)+a[3]*(width-1)*(height-1),
+                b[0]+(b[1]*width-1)+b[2]*(height-1)+b[3]*(width-1)*(height-1));
+    int minX = min(lt.x, min(lb.x, min(rt.x, rb.x))),
+        maxX = max(lt.x, max(lb.x, max(rt.x, rb.x))),
+        minY = min(lt.y, min(lb.y, min(rt.y, rb.y))),
+        maxY = max(lt.y, max(lb.y, max(rt.y, rb.y)));
+    int offsetX = 0 - minX, newWidth = maxX+offsetX,
+        offsetY = 0 - minY, newHeight = maxY+offsetY;
+    
+    #ifdef PAPER_CORECTION_DEBUG
+    ofstream fout("retXY.txt");
+    fout << "vertex===>" << endl;
+    for (int i = 0; i < v.size(); i++) {
+        fout << "(" << v[i].x << "," << v[i].y << ")" << endl;
+    }
+    fout << "standard===>" << endl;
+    for (int i = 0; i < s.size(); i++) {
+        fout << "(" << s[i].x << "," << s[i].y << ")" << endl;
+    }
+    fout << "transform====>" << endl;
+    for (int i = 0; i < v.size(); i++) {
+        fout << "x====>" << a[0]+a[1]*v[i].x+a[2]*v[i].y+a[3]*v[i].x*v[i].y;
+             << "      y====>" << b[0]+b[1]*v[i].x+b[2]*v[i].y+b[3]*v[i].x*v[i].y << endl;
+    }
+    fout << "lt===>(" << lt.x << "," << lt.y << ")" << endl
+         << "lb===>(" << lb.x << "," << lb.y << ")" << endl
+         << "rt===>(" << rt.x << "," << rt.y << ")" << endl
+         << "rb===>(" << rb.x << "," << rb.y << ")" << endl;
+    fout << "offsetX===>" << offsetX << "   offsetY====>" << offsetY
+         << "   newWidth===>" << newWidth << "   newHeight===>" << newHeight << endl;
+    #endif
+
+    CImg<float> ret(newWidth+1, newHeight+1, 1, spectrum, 0);
+
+    for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y++) {
+            int retX = (a[0] + a[1]*x + a[2]*y + a[3]*x*y)+offsetX;
+            int retY = (b[0] + b[1]*x + b[2]*y + b[3]*x*y)+offsetY;
+            if (!(retX >= 0 && retX <= newWidth && retY >= 0 && retY <= newHeight)) {
+                fout << "retX====>" << retX << "   retY=====>" << retY << endl;
+                continue;
+            }
+            //assert(retX >= 0 && retX <= newWidth && retY >= 0 && retY <= newHeight);
+            for (int k = 0; k < spectrum; k++) {
+                ret(retX, retY, 0, k) = srcImg(x, y, 0, k);
+            }
+        }
+    }
+
+    ret.display();
+    ret.save_jpeg("final.jpg");
+
+    return ret;
 }
 
 /**
