@@ -29,11 +29,7 @@ int main(int argc, char **argv) {
     int errorTheta = 10, errorP = 125;
     PaperCorection dect(rate, errorTheta, errorP);
 
-    //vector<Position> result = dect.detect_edge(hough.get_hough_space(), srcImg, cannyDetectImg);
-    //assert(result.size() == 4);
-    vector<Position> v = dect.get_vertexs(hough.get_hough_space(), srcImg, cannyDetectImg);
-    vector<Position> s = dect.get_standard_vertexs(hough.get_hough_space(), srcImg, cannyDetectImg);
-    dect.image_wrap(v, s, srcImg);
+    dect.paper_corection(hough.get_hough_space(), srcImg, cannyDetectImg);
 
 
 }

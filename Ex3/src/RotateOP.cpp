@@ -134,6 +134,10 @@ Position RotateOP::rotate_pos(const Position &srcPos, double theta, int width, i
     return Position(x+halfW, y+halfH);
 }
 
+CImg<float> RotateOP::rotate(const CImg<float>& srcImg, double theta) {
+    return rotate_biliinear(srcImg, theta);
+}
+
 
 
 
