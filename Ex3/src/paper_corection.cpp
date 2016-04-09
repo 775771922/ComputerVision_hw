@@ -498,6 +498,19 @@ CImg<float> PaperCorection::image_wrap(vector<Position> &origin, vector<Position
         newHeight = standard[lb].y - standard[minIndex].y + 1,
         spectrum = srcImg.spectrum();
 
+    #ifdef PAPER_CORECTION_DEBUG
+    cout << "standard===>" << endl;
+    for (int i = 0; i < standard.size(); i++) {
+        cout << "(" << standard[i].x << "," << standard[i].y << ")" << endl;
+    }
+    cout << "newWidth===>" << newWidth << "  newHeight===>" << newHeight << endl;
+    cout << "origin===>" << endl;
+    for (int i = 0; i < origin.size(); i++) {
+        cout << "(" << origin[i].x << "," << origin[i].y << ")" << endl;
+    }
+
+    #endif
+
     int rb = (minIndex+2) % standard.size();
     double x[4], y[4], H[8];
     x[0] = origin[minIndex].x, x[1] = origin[rt].x, x[2] = origin[lb].x, x[3] = origin[rb].x;
@@ -531,6 +544,10 @@ CImg<float> PaperCorection::image_wrap(vector<Position> &origin, vector<Position
     H[4] = (y[0]-h*y[2]*H[7]-y[2])/(-h);
     H[5] = y[0];
 
+    for (int i = 0; i < 8; i++) {
+        cout << "H[" << i << "]==>" << H[i] << endl;
+    }
+
     return biliinear_interpolation(srcImg, newWidth, newHeight, H);
 }
 
@@ -538,12 +555,29 @@ CImg<float> PaperCorection::biliinear_interpolation(const CImg<float>& srcImg, i
     int height, double h[8]) {
     int srcWidth = srcImg.width(), srcHeight = srcImg.height();
     int spectrum = srcImg.spectrum();
-    double u, v, srcX, srcY;
+    double u, v, lamda, srcX, srcY;
     CImg<float> ret(width, height, 1, spectrum);
     for (int i = 0; i < width; i++) {
         for (int j = 0; j < height; j++) {
-            srcX = i*h[0]+j*h[1]+h[2];
-            srcY = i*h[3]+j*h[4]+h[5];
+            lamda = i*h[6] + j*h[7] + 1;
+            // srcX = (i*h[0]+j*h[1]+h[2]) * lamda;
+            // srcY = (i*h[3]+j*h[4]+h[5]) * lamda;
+
+            srcX = (i*h[0]+j*h[1]+h[2]);
+            srcY = (i*h[3]+j*h[4]+h[5]);
+
+
+            #ifdef PAPER_CORECTION_DEBUG
+            if (i == 0 && j == 0) {
+                cout << "lamda====>" << lamda << " (" << i << "," << j << ")===>(" << srcX << "," << srcY << ")" << endl;
+            } else if (i == width-1 && j == 0) {
+                cout << "lamda====>" << lamda << " (" << i << "," << j << ")===>(" << srcX << "," << srcY << ")" << endl;
+            } else if (i == 0 && j == height-1) {
+                cout << "lamda====>" << lamda << " (" << i << "," << j << ")===>(" << srcX << "," << srcY << ")" << endl;
+            } else if (i == width-1 && j == height-1) {
+                cout << "lamda====>" << lamda << " (" << i << "," << j << ")===>(" << srcX << "," << srcY << ")" << endl;
+            }
+            #endif
             u = srcX - (int)srcX;
             v = srcY - (int)srcY;
             if (srcX >= 0 && srcX < srcImg.width() && srcY >= 0 && srcY < srcImg.height()) {
