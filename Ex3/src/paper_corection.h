@@ -21,7 +21,7 @@ private:
     void draw_point(CImg<float> &img, const Position &p);
     vector<Position> detect_edge(vector<Position> &pos);
     CImg<float> adjust_orientation(const CImg<float> &srcImg, vector<Position> &v, bool isVertical);
-    CImg<float> clip_img(const CImg<float> &srcImg, vector<Position> &s, int offsetX, int offsetY);
+    CImg<float> clip_img(const CImg<float> &srcImg, vector<Position> &s);
     CImg<float> biliinear_interpolation(const CImg<float>& srcImg, int width, int height, double h[8]);
 	// 检查像素位置，防止超过图片宽度
 	int valueWidth(double srcX, int width);
@@ -34,10 +34,9 @@ public:
 	            const CImg<float> &cannyImg);
 	vector<Position> get_vertexs(const CImg<float> &houghSpace, const CImg<float> &srcImg, 
 	            const CImg<float> &cannyImg);
-    vector<Position> get_standard_vertexs(vector<Position> &v, bool &isVertical);
-    CImg<float> image_wrap(vector<Position> &vertexs, vector<Position> &standard, const CImg<float> &srcImg, 
-    	        int &offsetX, int &offsetY);
-    CImg<float> image_wrap(vector<Position> &origin, vector<Position> &standard, const CImg<float> &srcImg);
+    vector<Position> get_standard_vertexs(vector<Position> &v, int srcWidth, int srcHeight);
+    CImg<float> image_wrap1(vector<Position> &origin, vector<Position> &standard, const CImg<float> &srcImg);
+    CImg<float> image_wrap(vector<Position> &v, vector<Position> &s, const CImg<float> &srcImg);
     CImg<float> paper_corection(const CImg<float> &houghSpace, const CImg<float> &srcImg, const CImg<float> &cannyImg);
 };
 

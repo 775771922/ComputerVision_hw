@@ -40,18 +40,19 @@ vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, cons
         }
     }
 
-    // #ifdef PAPER_CORECTION_DEBUG
-    // int width = cannyImg.width();
-    // int height = cannyImg.height();
-    // CImg<float> o(width, height, 1, 1, 0);
-    // ofstream fout("set.txt");
-    // for (int i = 0; i < v.size(); i++) {
-    //     Position p = v[i];
-    //     fout << "(" << p.x << ", " << p.y << ")" << " " << p.sum << "\n";
-    //     draw_line(o, p.x, p.y);
-    // }
-    // o.save_jpeg("o.jpg");
-    // #endif
+    #ifdef PAPER_CORECTION_DEBUG
+    ofstream fout("set.txt");
+    int width = cannyImg.width();
+    int height = cannyImg.height();
+    CImg<float> o(width, height, 1, 1, 0);
+    for (int i = 0; i < v.size(); i++) {
+        Position p = v[i];
+        draw_line(o, p.x, p.y);
+        fout << "(" << p.x << "," << p.y << ")" << endl;
+    }
+    fout.close();
+    o.save_jpeg("o.jpg");
+    #endif
 
     // 对hough空间中剩余的点按照误差值进行聚类，聚类后的点放在cluster里面
     multimap<int, Position> cluster;
@@ -90,49 +91,50 @@ vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, cons
     // print_map(cluster);
     // #endif
 
-    // #ifdef PAPER_CORECTION_DEBUG
-    // // 根据聚类的结果，选出投票数最高的四个点绘制结果图
-    // CImg<float> result(srcImg);
-     multimap<int, Position>::reverse_iterator reverseIt = cluster.rbegin();
-    // for (int count = 1; reverseIt != cluster.rend() && count <= 7; reverseIt++, count++) {
-    // 	Position p = reverseIt->second;
-    //     // 对检测到的直线标记红色
-    // 	draw_result(result, p.x, p.y, 0);
-    //     result.display();
-    // }
-    // result.save_jpeg("result.jpg");
-    // #endif
+    #ifdef PAPER_CORECTION_DEBUG
+    // 根据聚类的结果，选出投票数最高的四个点绘制结果图
+    CImg<float> result(srcImg);
+    multimap<int, Position>::reverse_iterator reverseIt = cluster.rbegin();
+    for (int count = 1; reverseIt != cluster.rend() && count <= 7; reverseIt++, count++) {
+    	Position p = reverseIt->second;
+        // 对检测到的直线标记红色
+    	draw_result(result, p.x, p.y, 0);
+        result.display();
+    }
+    result.save_jpeg("result.jpg");
+    #endif
 
     vector<Position> pos;
     for (reverseIt = cluster.rbegin(); reverseIt != cluster.rend(); reverseIt++) {
         pos.push_back(reverseIt->second);
     }
 
-    // #ifdef PAPER_CORECTION_DEBUG
-    // CImg<float> r(srcImg);
-    // vector<Position> newPos = detect_edge(pos);
-    // cout << "newPos====>" << newPos.size() << endl;
-    // for (int i = 0; i < newPos.size(); i++) {
-    //     cout << "(" << newPos[i].x << "," << newPos[i].y << ")" << endl;
-    // }
-    // for (int i = 0; i < newPos.size(); i++) {
-    //     draw_result(r, newPos[i].x, newPos[i].y, 0);
-    //     r.display();
-    // }
-    // r.save_jpeg("r.jpg");
-    // #endif
+    #ifdef PAPER_CORECTION_DEBUG
+    CImg<float> r(srcImg);
+    vector<Position> newPos = detect_edge(pos);
+    cout << "newPos====>" << newPos.size() << endl;
+    for (int i = 0; i < newPos.size(); i++) {
+        cout << "(" << newPos[i].x << "," << newPos[i].y << ")" << endl;
+    }
+    for (int i = 0; i < newPos.size(); i++) {
+        draw_result(r, newPos[i].x, newPos[i].y, 0);
+        r.display();
+    }
+    r.save_jpeg("r.jpg");
+    #endif
 
-    return detect_edge(pos);
+    return newPos;
 }
 
 vector<Position> PaperCorection::detect_edge(vector<Position> &pos) {
     assert(pos.size() >= 4);
 
-    double thetaError = 10, verticalAngle = 90;
+    double thetaError = 10, verticalAngle = 90, disError = 100;
     vector<Position> res;
     // 默认投票数最高的点是正确的边缘
     Position p1 = pos[0], p2;
     res.push_back(p1);
+    // p2的下标
     int p2Index = 0;
     // 找到与p1垂直的直线p2
     for (int i = 1; i < pos.size(); i++) {
@@ -154,7 +156,8 @@ vector<Position> PaperCorection::detect_edge(vector<Position> &pos) {
     }
     res.push_back(p2);
     for (int i = 1; i < pos.size(); i++) {
-        if (i != p2Index && (abs(p2.x-pos[i].x) <= thetaError || abs(abs(p2.x-pos[i].x)-360) <= thetaError)) {
+        if (i != p2Index && (abs(p2.x-pos[i].x) <= thetaError || abs(abs(p2.x-pos[i].x)-360) <= thetaError) &&
+            (abs(p2.y-pos[i].y) > disError)) {
             res.push_back(pos[i]);
             break;
         }
@@ -222,7 +225,7 @@ vector<Position> PaperCorection::get_vertexs(const CImg<float> &houghSpace, cons
 
 
 
-vector<Position> PaperCorection::get_standard_vertexs(vector<Position> &v, bool &isVertical) {
+vector<Position> PaperCorection::get_standard_vertexs(vector<Position> &v, int srcWidth, int srcHeight) {
     assert(v.size() == 4);
     vector<Position> ret(4, Position(-1,-1));
     Position p = v[0];
@@ -248,9 +251,11 @@ vector<Position> PaperCorection::get_standard_vertexs(vector<Position> &v, bool 
 
     int neighbor3 = (minIndex+2) % v.size();
 
+    cout << "l1=====>" << l1 << "    l2====>" << l2 << endl;
+    cout << "neighbor1===>" << neighbor1 << "       neighbor2====>" << neighbor2 << endl;
+
 
     if ((v[neighbor3].x-v[neighbor1].x)*(v[neighbor3].x-v[neighbor2].x) < 0) { // neighbor1,2在3的两侧
-        cout << "if" << endl;
         assert(v[neighbor1].x != v[neighbor2].x);
         if (v[neighbor1].x > v[neighbor2].x) {
             ret[neighbor1] = Position(v[minIndex].x+l1, v[minIndex].y);
@@ -262,7 +267,6 @@ vector<Position> PaperCorection::get_standard_vertexs(vector<Position> &v, bool 
             ret[neighbor3] = Position(v[minIndex].x+l2, v[minIndex].y+l1);
         }
     } else if ((v[neighbor3].x-v[neighbor1].x)*(v[neighbor3].x-v[neighbor2].x) > 0) { // neighbor1,2在3的同侧
-        cout << "else if" << endl;
         assert(v[neighbor1].y != v[neighbor2].y);
         if (v[neighbor1].y < v[neighbor2].y) {
             ret[neighbor1] = Position(v[minIndex].x+l1, v[minIndex].y);
@@ -274,7 +278,6 @@ vector<Position> PaperCorection::get_standard_vertexs(vector<Position> &v, bool 
             ret[neighbor3] = Position(v[minIndex].x+l2, v[minIndex].y+l1);
         }
     } else { // neighbor1或2与3在同一垂线上
-        cout << "else" << endl;
         if (v[neighbor1].x == v[neighbor3].x) {
             ret[neighbor1] = Position(v[minIndex].x+l1, v[minIndex].y);
             ret[neighbor2] = Position(v[minIndex].x, v[minIndex].y+l2);
@@ -287,129 +290,22 @@ vector<Position> PaperCorection::get_standard_vertexs(vector<Position> &v, bool 
     }
     ret[minIndex] = v[minIndex];
 
-    isVertical = true;
-    if (l1 >= l2) {
-        if (ret[neighbor1].x > ret[minIndex].x) {
-            isVertical = false;
+    for (int i = 0; i < ret.size(); i++) {
+        if (ret[i].x < 0) {
+            ret[i].x = 0;
         }
-    } else {
-        if (ret[neighbor2].x > ret[minIndex].x) {
-            isVertical = false;
+        if (ret[i].x >= srcWidth) {
+            ret[i].x = srcWidth-1;
+        }
+        if (ret[i].y < 0) {
+            ret[i].y = 0;
+        }
+        if (ret[i].y >= srcHeight) {
+            ret[i].y = srcHeight-1;
         }
     }
 
     return ret;
-}
-
-CImg<float> PaperCorection::image_wrap(vector<Position> &v, vector<Position> &s, const CImg<float> &srcImg, 
-    int &offsetX, int &offsetY) {
-    double a[4], b[4];
-    double c[3], d[3];
-    double x0 = v[0].x, x1 = v[1].x, x2 = v[2].x, x3 = v[3].x,
-           y0 = v[0].y, y1 = v[1].y, y2 = v[2].y, y3 = v[3].y,
-           u0 = s[0].x, u1 = s[1].x, u2 = s[2].x, u3 = s[3].x,
-           v0 = s[0].y, v1 = s[1].y, v2 = s[2].y, v3 = s[3].y;
-
-    // 防止出现除数为0的情况
-    if (x0 == x2) {
-        x2 = x0 + 0.01;
-    }
-    if (x0 == x3) {
-        x3 = x3 + 0.01;
-    }
-
-    c[0] = y0-y1-(y0-y2)*(x0-x1)/(x0-x2);
-    c[1] = x0*y0-x1*y1-(x0*y0-x2*y2)*(x0-x1)/(x0-x2);
-    c[2] = u0-u1-(u0-u2)*(x0-x1)/(x0-x2);
-    d[0] = y0-y1-(y0-y3)*(x0-x1)/(x0-x3);
-    d[1] = x0*y0-x1*y1-(x0*y0-x3*y3)*(x0-x1)/(x0-x3);
-    d[2] = u0-u1-(u0-u3)*(x0-x1)/(x0-x3);
-
-    a[3] = (c[2]*d[0]-d[2]*c[0])/(c[1]*d[0]-d[1]*c[0]);
-    a[2] = (c[2]-c[1]*a[3])/c[0];
-    a[1] = (u0-u1-(x0*y0-x1*y1)*a[3]-(y0-y1)*a[2])/(x0-x1);
-    a[0] = u0-x0*y0*a[3]-y0*a[2]-x0*a[1];
-
-    double e[3], f[3];
-    e[0] = y0-y1-(y0-y2)*(x0-x1)/(x0-x2); 
-    e[1] = x0*y0-x1*y1-(x0*y0-x2*y2)*(x0-x1)/(x0-x2);
-    e[2] = v0-v1-(v0-v2)*(x0-x1)/(x0-x2);
-    f[0] = y0-y1-(y0-y3)*(x0-x1)/(x0-x3);
-    f[1] = x0*y0-x1*y1-(x0*y0-x3*y3)*(x0-x1)/(x0-x3);
-    f[2] = v0-v1-(v0-v3)*(x0-x1)/(x0-x3);
-
-    b[3] = (e[2]*f[0]-e[0]*f[2])/(e[1]*f[0]-e[0]*f[1]);
-    b[2] = (e[2]-e[1]*b[3])/e[0];
-    b[1] = (v0-v1-(x0*y0-x1*y1)*b[3]-(y0-y1)*b[2])/(x0-x1);
-    b[0] = v0-x0*y0*b[3]-y0*b[2]-x0*b[1];
-
-    #ifdef PAPER_CORECTION_DEBUG
-    cout << "a[i]" << endl;
-    for (int i = 0; i < 4; i++) {
-        cout << a[i] << " ";
-    }
-    cout << endl;
-    cout << "b[i]" << endl;
-    for (int i = 0; i < 4; i++) {
-        cout << b[i] << " ";
-    }
-    cout << endl;
-    #endif
-
-    int width = srcImg.width(), height = srcImg.height(), spectrum = srcImg.spectrum();
-    Position lt(a[0], b[0]), lb(a[0]+a[2]*(height-1), b[0]+b[2]*(height-1)),
-             rt(a[0]+a[1]*(width-1), b[0]+b[1]*(width-1)), 
-             rb(a[0]+(a[1]*width-1)+a[2]*(height-1)+a[3]*(width-1)*(height-1),
-                b[0]+(b[1]*width-1)+b[2]*(height-1)+b[3]*(width-1)*(height-1));
-    int minX = min(lt.x, min(lb.x, min(rt.x, rb.x))),
-        maxX = max(lt.x, max(lb.x, max(rt.x, rb.x))),
-        minY = min(lt.y, min(lb.y, min(rt.y, rb.y))),
-        maxY = max(lt.y, max(lb.y, max(rt.y, rb.y)));
-
-    offsetX = 0 - minX;
-    offsetY = 0 - minY;
-
-    int newWidth = maxX+offsetX, newHeight = maxY+offsetY;
-    
-    #ifdef PAPER_CORECTION_DEBUG
-    ofstream fout("retXY.txt");
-    fout << "vertex===>" << endl;
-    for (int i = 0; i < v.size(); i++) {
-        fout << "(" << v[i].x << "," << v[i].y << ")" << endl;
-    }
-    fout << "standard===>" << endl;
-    for (int i = 0; i < s.size(); i++) {
-        fout << "(" << s[i].x << "," << s[i].y << ")" << endl;
-    }
-    fout << "transform====>" << endl;
-    for (int i = 0; i < v.size(); i++) {
-        fout << "x====>" << a[0]+a[1]*v[i].x+a[2]*v[i].y+a[3]*v[i].x*v[i].y
-             << "      y====>" << b[0]+b[1]*v[i].x+b[2]*v[i].y+b[3]*v[i].x*v[i].y << endl;
-    }
-    fout << "lt===>(" << lt.x << "," << lt.y << ")" << endl
-         << "lb===>(" << lb.x << "," << lb.y << ")" << endl
-         << "rt===>(" << rt.x << "," << rt.y << ")" << endl
-         << "rb===>(" << rb.x << "," << rb.y << ")" << endl;
-    fout << "offsetX===>" << offsetX << "   offsetY====>" << offsetY
-         << "   newWidth===>" << newWidth << "   newHeight===>" << newHeight << endl;
-    #endif
-
-    CImg<float> temp(newWidth+1, newHeight+1, 1, spectrum, 0);
-
-    for (int x = 0; x < width; x++) {
-        for (int y = 0; y < height; y++) {
-            int retX = (a[0] + a[1]*x + a[2]*y + a[3]*x*y)+offsetX;
-            int retY = (b[0] + b[1]*x + b[2]*y + b[3]*x*y)+offsetY;
-            if (!(retX >= 0 && retX <= newWidth && retY >= 0 && retY <= newHeight)) {
-                continue;
-            }
-            assert(retX >= 0 && retX <= newWidth && retY >= 0 && retY <= newHeight);
-            for (int k = 0; k < spectrum; k++) {
-                temp(retX, retY, 0, k) = srcImg(x, y, 0, k);
-            }
-        }
-    }
-    return temp;
 }
 
 CImg<float> PaperCorection::adjust_orientation(const CImg<float> &srcImg, vector<Position> &v, bool isVertical) {
@@ -432,8 +328,7 @@ CImg<float> PaperCorection::adjust_orientation(const CImg<float> &srcImg, vector
     return srcImg;
 }
 
-CImg<float> PaperCorection::clip_img(const CImg<float> &srcImg, vector<Position> &s, 
-    int offsetX, int offsetY) {
+CImg<float> PaperCorection::clip_img(const CImg<float> &srcImg, vector<Position> &s) {
 
     #ifdef PAPER_CORECTION_DEBUG
     for (int i = 0; i < s.size(); i++) {
@@ -442,31 +337,31 @@ CImg<float> PaperCorection::clip_img(const CImg<float> &srcImg, vector<Position>
     #endif
 
     Position p = s[0];
-    int minIndex = 0;
+    int lt = 0;
     for (int i = 1; i < s.size(); i++) {
         if ((s[i].x*s[i].x+s[i].y*s[i].y) < p.x*p.x+p.y*p.y) {
-            minIndex = i;
+            lt = i;
             p = s[i];
         }
     }
-    int rightNeighbor, bottomNeighbor;
-    int index1 = (minIndex+1) % s.size(), index2 = (minIndex+3) % s.size();
+    int rt, lb;
+    int index1 = (lt+1) % s.size(), index2 = (lt+3) % s.size();
     if (s[index1].x > p.x) {
-        rightNeighbor = index1;
-        bottomNeighbor = index2;
+        rt = index1;
+        lb = index2;
     } else {
-        rightNeighbor = index2;
-        bottomNeighbor = index1;
+        rt = index2;
+        lb = index1;
     }
-    int thirdNeighbor = (minIndex+2) % s.size();
-    int newWidth = s[rightNeighbor].x - s[minIndex].x + 1,
-        newHeight = s[bottomNeighbor].y - s[minIndex].y + 1,
+    int rb = (lt+2) % s.size();
+    int newWidth = s[rt].x - s[lt].x + 1,
+        newHeight = s[lb].y - s[lt].y + 1,
         spectrum = srcImg.spectrum();
     CImg<float> ret(newWidth, newHeight, 1, spectrum);
-    for (int i = 0, ii = s[minIndex].x+offsetX; i < newWidth && ii <= s[rightNeighbor].x+offsetX; i++, ii++) {
-        for (int j = 0, jj = s[minIndex].y+offsetY; j < newHeight && jj <= s[bottomNeighbor].y+offsetY; j++, jj++) {
-            for (int k = 0; k < spectrum; k++) {
-                ret(i, j, 0, k) = srcImg(ii, jj, 0, k);
+    for (int i = 0; i < newWidth; i++) {
+        for (int j = 0; j < newHeight; j++) {
+            for (int channel = 0; channel < spectrum; channel++) {
+                ret(i, j, 0, channel) = srcImg(i+s[lt].x, j+s[lt].y, 0, channel);
             }
         }
     }
@@ -474,7 +369,7 @@ CImg<float> PaperCorection::clip_img(const CImg<float> &srcImg, vector<Position>
     return ret;
 }
 
-CImg<float> PaperCorection::image_wrap(vector<Position> &origin, vector<Position> &standard,
+CImg<float> PaperCorection::image_wrap1(vector<Position> &origin, vector<Position> &standard,
     const CImg<float> &srcImg) {
     Position p = standard[0];
     int minIndex = 0;
@@ -566,18 +461,6 @@ CImg<float> PaperCorection::biliinear_interpolation(const CImg<float>& srcImg, i
             srcX = (i*h[0]+j*h[1]+h[2]);
             srcY = (i*h[3]+j*h[4]+h[5]);
 
-
-            #ifdef PAPER_CORECTION_DEBUG
-            if (i == 0 && j == 0) {
-                cout << "lamda====>" << lamda << " (" << i << "," << j << ")===>(" << srcX << "," << srcY << ")" << endl;
-            } else if (i == width-1 && j == 0) {
-                cout << "lamda====>" << lamda << " (" << i << "," << j << ")===>(" << srcX << "," << srcY << ")" << endl;
-            } else if (i == 0 && j == height-1) {
-                cout << "lamda====>" << lamda << " (" << i << "," << j << ")===>(" << srcX << "," << srcY << ")" << endl;
-            } else if (i == width-1 && j == height-1) {
-                cout << "lamda====>" << lamda << " (" << i << "," << j << ")===>(" << srcX << "," << srcY << ")" << endl;
-            }
-            #endif
             u = srcX - (int)srcX;
             v = srcY - (int)srcY;
             if (srcX >= 0 && srcX < srcImg.width() && srcY >= 0 && srcY < srcImg.height()) {
@@ -609,26 +492,111 @@ int PaperCorection::valueHeight(double srcY, int height) {
     return srcY;
 }
 
+
+CImg<float> PaperCorection::image_wrap(vector<Position> &vertexs, vector<Position> &s, const CImg<float> &srcImg) {
+    double a[4], b[4];
+    double c[3], d[3];
+    double x0 = s[0].x, x1 = s[1].x, x2 = s[2].x, x3 = s[3].x,
+           y0 = s[0].y, y1 = s[1].y, y2 = s[2].y, y3 = s[3].y,
+           u0 = vertexs[0].x, u1 = vertexs[1].x, u2 = vertexs[2].x, u3 = vertexs[3].x,
+           v0 = vertexs[0].y, v1 = vertexs[1].y, v2 = vertexs[2].y, v3 = vertexs[3].y;
+
+    // 防止出现除数为0的情况
+    if (x0 == x1) {
+        x1 = x0 + 0.01;
+    }
+    if (x0 == x2) {
+        x2 = x0 + 0.01;
+    }
+    if (x0 == x3) {
+        x3 = x3 + 0.01;
+    }
+
+    c[0] = y0-y1-(y0-y2)*(x0-x1)/(x0-x2);
+    c[1] = x0*y0-x1*y1-(x0*y0-x2*y2)*(x0-x1)/(x0-x2);
+    c[2] = u0-u1-(u0-u2)*(x0-x1)/(x0-x2);
+    d[0] = y0-y1-(y0-y3)*(x0-x1)/(x0-x3);
+    d[1] = x0*y0-x1*y1-(x0*y0-x3*y3)*(x0-x1)/(x0-x3);
+    d[2] = u0-u1-(u0-u3)*(x0-x1)/(x0-x3);
+
+    cout << "(c[1]*d[0]-d[1]*c[0])====>" << (c[1]*d[0]-d[1]*c[0]) << endl; 
+    if ((c[1]*d[0]-d[1]*c[0]) == 0) {
+        a[3] = (c[2]*d[0]-d[2]*c[0])/(c[1]*d[0]-d[1]*c[0]+0.001);        
+    } else {
+        a[3] = (c[2]*d[0]-d[2]*c[0])/(c[1]*d[0]-d[1]*c[0]);
+    }
+    a[2] = (c[2]-c[1]*a[3])/c[0];
+    a[1] = (u0-u1-(x0*y0-x1*y1)*a[3]-(y0-y1)*a[2])/(x0-x1);
+    a[0] = u0-x0*y0*a[3]-y0*a[2]-x0*a[1];
+
+    double e[3], f[3];
+    e[0] = y0-y1-(y0-y2)*(x0-x1)/(x0-x2); 
+    e[1] = x0*y0-x1*y1-(x0*y0-x2*y2)*(x0-x1)/(x0-x2);
+    e[2] = v0-v1-(v0-v2)*(x0-x1)/(x0-x2);
+    f[0] = y0-y1-(y0-y3)*(x0-x1)/(x0-x3);
+    f[1] = x0*y0-x1*y1-(x0*y0-x3*y3)*(x0-x1)/(x0-x3);
+    f[2] = v0-v1-(v0-v3)*(x0-x1)/(x0-x3);
+
+
+    cout << "(e[1]*f[0]-e[0]*f[1])====>" << (e[1]*f[0]-e[0]*f[1]) << endl;
+    if ((e[1]*f[0]-e[0]*f[1]) == 0) {
+        b[3] = (e[2]*f[0]-e[0]*f[2])/(e[1]*f[0]-e[0]*f[1]+0.001);
+    } else {
+        b[3] = (e[2]*f[0]-e[0]*f[2])/(e[1]*f[0]-e[0]*f[1]);
+    }
+
+    //b[3] = (e[2]*f[0]-e[0]*f[2])/(e[1]*f[0]-e[0]*f[1]);
+    b[2] = (e[2]-e[1]*b[3])/e[0];
+    b[1] = (v0-v1-(x0*y0-x1*y1)*b[3]-(y0-y1)*b[2])/(x0-x1);
+    b[0] = v0-x0*y0*b[3]-y0*b[2]-x0*b[1];
+
+    #ifdef PAPER_CORECTION_DEBUG
+    cout << "a[i]" << endl;
+    for (int i = 0; i < 4; i++) {
+        cout << a[i] << " ";
+    }
+    cout << endl;
+    cout << "b[i]" << endl;
+    for (int i = 0; i < 4; i++) {
+        cout << b[i] << " ";
+    }
+    cout << endl;
+    #endif
+
+    int srcWidth = srcImg.width(), srcHeight = srcImg.height(), spectrum = srcImg.spectrum();
+    CImg<float> ret(srcWidth, srcHeight, 1, spectrum, 0);
+
+    double srcX, srcY, u, v;
+
+    for (int i = 0; i < srcWidth; i++) {
+        for (int j = 0; j < srcHeight; j++) {
+            
+            srcX = a[0] + a[1]*i + a[2]*j + a[3]*i*j;
+            srcY = b[0] + b[1]*i + b[2]*j + b[3]*i*j;
+
+            u = srcX - (int)srcX;
+            v = srcY - (int)srcY;
+            if (srcX >= 0 && srcX < srcImg.width() && srcY >= 0 && srcY < srcImg.height()) {
+                for (int channel = 0; channel < spectrum; channel++) {
+                    ret(i, j, 0, channel) = 
+                        (int)((1-u)*(1-v)*srcImg(valueWidth(srcX, srcWidth), valueHeight(srcY, srcHeight), 0, channel)
+                        +(1-u)*v*srcImg(valueWidth(srcX, srcWidth), valueHeight(srcY+1, srcHeight), 0, channel)
+                        +u*(1-v)*srcImg(valueWidth(srcX+1, srcWidth), valueHeight(srcY, srcHeight), 0, channel)
+                        +u*v*srcImg(valueWidth(srcX+1, srcWidth), valueHeight(srcY+1, srcHeight), 0, channel));
+                }
+            }
+        }
+    }
+
+    return ret;
+}
+
 CImg<float> PaperCorection::paper_corection(const CImg<float> &houghSpace, const CImg<float> &srcImg, 
     const CImg<float> &cannyImg) {
     vector<Position> vertexs = get_vertexs(houghSpace, srcImg, cannyImg);
-    bool isVertical;
-    vector<Position> standard = get_standard_vertexs(vertexs, isVertical); 
-    // int offsetX, offsetY;
-    // CImg<float> wrapImg = image_wrap(vertexs, standard, srcImg, offsetX, offsetY);
-    // vector<Position> rotateVertex(standard);
-
-    // for (int i = 0; i < rotateVertex.size(); i++) {
-    //     rotateVertex[i].x += offsetX;
-    //     rotateVertex[i].y += offsetY;
-    // }
-
-    // CImg<float> adjustImg = adjust_orientation(wrapImg, rotateVertex, isVertical);
-    // CImg<float> ret = clip_img(adjustImg, rotateVertex, offsetX, offsetY);
-    CImg<float> ret = image_wrap(vertexs, standard, srcImg);
+    vector<Position> standard = get_standard_vertexs(vertexs, srcImg.width(), srcImg.height()); 
 
     #ifdef PAPER_CORECTION_DEBUG
-
     CImg<float> t1(srcImg);
     for (int i = 0; i < vertexs.size(); i++) {
         cout << "(" << vertexs[i].x << "," << vertexs[i].y << ")\n";
@@ -639,51 +607,29 @@ CImg<float> PaperCorection::paper_corection(const CImg<float> &houghSpace, const
     
     CImg<float> t2(srcImg);
     for (int i = 0; i < standard.size(); i++) {
+        cout << "(" << standard[i].x << "," << standard[i].y << ")\n";
         draw_point(t2, standard[i]);
         t2.display();
     }
     t2.save_jpeg("t2.jpg");
+    #endif
 
-    ret.display("ret");
-    ret.save_jpeg("ret.jpg");
+    CImg<float> wrapImg = image_wrap(vertexs, standard, srcImg);
+    CImg<float> clipImg = clip_img(wrapImg, standard);
+    if (clipImg.width() > clipImg.height()) {
+        RotateOP ro;
+        double rotateAngle = 90*PI/180;
+        clipImg = ro.rotate(clipImg, rotateAngle);
+    }
 
-    // wrapImg.display("wrapImg");
-    // wrapImg.save_jpeg("wrapImg.jpg");
-    
-    // adjustImg.display("adjustImg");
-    // adjustImg.save_jpeg("adjustImg.jpg");
+    #ifdef PAPER_CORECTION_DEBUG
 
-    // for (int i = 0; i < rotateVertex.size(); i++) {
-    //     rotateVertex[i].x += offsetX;
-    //     rotateVertex[i].y += offsetY;
-    // }
-    // for (int i = 0; i < rotateVertex.size(); i++) {
-    //     draw_point(wrapImg, rotateVertex[i]);
-    //     wrapImg.display();
-    // }
-    // wrapImg.save_jpeg("wrapImg_point.jpg");
-    // for (int i = 0; i < rotateVertex.size(); i++) {
-    //     draw_point(adjustImg, rotateVertex[i]);
-    //     adjustImg.display();
-    // }
-    // adjustImg.save_jpeg("adjustImg_point.jpg");
-
-    // ret.display("clip");
-    // ret.save_jpeg("clip.jpg");
-    
-    // cout << "standard===>" << endl;
-    // for (int i = 0; i < standard.size(); i++) {
-    //     cout << "(" << standard[i].x << "," << standard[i].y << ")" << endl;
-    // }
-    // cout << "rotate===>" << endl;
-    // for (int i = 0; i < rotateVertex.size(); i++) {
-    //     cout << "(" << rotateVertex[i].x << "," << rotateVertex[i].y << ")" << endl;
-    // }
-
+    clipImg.display("clipImg");
+    clipImg.save_jpeg("clipImg.jpg");
 
     #endif
 
-    return ret;
+    return clipImg;
 }
 
 /**

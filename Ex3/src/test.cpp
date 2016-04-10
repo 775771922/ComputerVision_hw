@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
 	hough.draw_hough_space(cannyDetectImg);
 
     double rate = 0.4;
-    int errorTheta = 10, errorP = 125;
+    int errorTheta = 10, errorP = 75; //125;
     PaperCorection dect(rate, errorTheta, errorP);
 
     dect.paper_corection(hough.get_hough_space(), srcImg, cannyDetectImg);
