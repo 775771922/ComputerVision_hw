@@ -11,3 +11,7 @@ Rotate, scale and draw image. Using nearest and bilinear interpolation to reduce
 ###Ex2
 
 Canny edge detection. Hough transformation. A4 paper edge detection.
+
+###Ex3
+
+Image wrapping. A4 paper correction.
