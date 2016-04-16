@@ -1,8 +1,10 @@
 #include "image_stitch.h"
+#include "opencv2/opencv.hpp"
 #include <cmath>
 #include <float.h>
 #include <cstdlib>
 #include <ctime>
+using namespace cv;
 
 ImageStitch::ImageStitch(int octaves, int levels, int o_min)
            : noctaves(octaves), nlevels(levels), o_min(o_min) {
@@ -35,7 +37,7 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
 	descr1.clear();
 	descr2.clear();
 
-	return image_stitch(img1, img2, h);
+	return image_stitch(img1, img2, h, pairs);
 }
 
 void ImageStitch::calc_descriptor(vector<vl_sift_pix*>& descr, VlSiftFilt* siftFilt, 
@@ -120,13 +122,6 @@ float ImageStitch::calc_euclidean_distance(vl_sift_pix* descr1, vl_sift_pix* des
 	return acc;
 }
 
-void ImageStitch::calc_homography(vector<VlSiftKeypoint> &keypoints1, 
-	vector<VlSiftKeypoint> &keypoints2, double h[9]) {
-	assert(keypoints1.size() == 4);
-	assert(keypoints2.size() == 4);
-
-}
-
 void ImageStitch::ransac(double h[9], const vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
 	vector<VlSiftKeypoint>& keypoints2, float epsilon) {
 	int loop_times = 10;
@@ -169,11 +164,37 @@ void ImageStitch::calc_homography(vector<VlSiftKeypoint> &keypoints1,
 	vector<VlSiftKeypoint> &keypoints2, double h[9]) {
 	assert(keypoints1.size() == 4);
 	assert(keypoints2.size() == 4);
+
+	vector<Point2f> srcV, destV;
+	for (int i = 0; i < keypoints1.size(); i++) {
+		srcV.push_back(Point2f(keypoints1[i].x, keypoints1[i].y));
+		destV.push_back(Point2f(keypoints2[i].x, keypoints2[i].y));
+	}
+
+	Mat matrix = findHomography(srcV, destV);
+	int nRows = matrix.rows;
+	int nCols = matrix.cols;
+	for (int i = 0; i < nRows; i++) {
+		for (int j = 0; j < nCols; j++) {
+			h[i*nCols+j] = matrix.at<double>(i, j);
+		}
+	}
 }
 
 int ImageStitch::calc_inliers(vector<Pair> &pairs, vector<VlSiftKeypoint> &keypoints1, 
     vector<VlSiftKeypoint> &keypoints2, double tempH[9], float epsilon) {
-
+	int inliers = 0;
+	for (int i = 0; i < pairs.size(); i++) {
+		VlSiftKeypoint srcP = keypoints1[pairs[i].k1];
+		VlSiftKeypoint destP = keypoints2[pairs[i].k2];
+		double x, y;
+		x = srcP.x*tempH[0] + srcP.y*tempH[1] + tempH[2];
+		y = srcP.x*tempH[3] + srcP.y*tempH[4] + tempH[5];
+		if ((x-destP.x)*(x-destP.x)+(y-destP.y)*(y-destP.y) < epsilon*epsilon) {
+			++inliers;
+		}
+	}
+	return inliers;
 }
     
 void ImageStitch::recomputer_least_squares(vector<VlSiftKeypoint> &keypoints1, 
@@ -184,6 +205,20 @@ void ImageStitch::recomputer_least_squares(vector<VlSiftKeypoint> &keypoints1,
 CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float> &img2, 
 	double h[], vector<Pair> &pairs) {
 
+    assert(img1.spectrum() == img2.spectrum());
+
+	CImg<float> ret(img1);
+	for (int i = 0; i < img1.width(); i++) {
+		for (int j = 0; j < img1.height(); j++) {
+			double x = i*h[0]+j*h[1]+h[2], y = i*h[3]+j*h[4]+h[5];
+			if (x >= 0 && x < img2.width() && y >= 0 && y < img2.height()) {
+				for (int channel = 0; channel < img1.spectrum(); channel++) {
+					ret(i, j, 0, channel) = img2((int)x, (int)y, 0, channel);
+				}
+			}
+		}
+	}
+	return ret;
 }
 
 CImg<float> ImageStitch::get_gray_image(const CImg<float> &srcImg) {

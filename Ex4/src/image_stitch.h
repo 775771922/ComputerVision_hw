@@ -3,6 +3,7 @@
 #include <vector>
 #include "CImg.h"
 using namespace cimg_library;
+using namespace std;
 
 extern "C" {
 	#include "vl/generic.h"
