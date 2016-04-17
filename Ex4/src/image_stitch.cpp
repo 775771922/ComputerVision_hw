@@ -4,7 +4,23 @@
 #include <float.h>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
 using namespace cv;
+
+
+void draw_point(CImg<float> &img, int x, int y, double circle) {
+	assert(x >= 0 && x < img.width() && y >= 0 && y < img.height());
+    int width = img.width();
+    int height = img.height();
+    for (int i = 0; i < width; i++) {
+        for (int j = 0; j < height; j++) {
+            if (sqrt((i-x)*(i-x)+(j-y)*(j-y)) < circle) {
+                img(i, j, 0, 0) = 0xff;
+            }
+        }
+    }
+}
+
 
 ImageStitch::ImageStitch(int octaves, int levels, int o_min)
            : noctaves(octaves), nlevels(levels), o_min(o_min) {
@@ -17,6 +33,11 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
 	assert(grayImg1.spectrum() == 1);
 	assert(grayImg2.spectrum() == 1);
 
+	#ifdef Image_Stitch_DEBUG
+	grayImg1.display();
+	grayImg2.display();
+	#endif
+
 	VlSiftFilt* siftFilt1 = vl_sift_new(img1.width(), img1.height(), noctaves, nlevels, o_min);
 	VlSiftFilt* siftFilt2 = vl_sift_new(img2.width(), img2.height(), noctaves, nlevels, o_min);
 	vector<vl_sift_pix*> descr1;
@@ -26,7 +47,11 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
 	calc_descriptor(descr1, siftFilt1, keypoints1, img1);
 	calc_descriptor(descr2, siftFilt2, keypoints2, img2);
 	float thresh = 0.5;
-	vector<Pair> pairs = compair(descr1, descr2, thresh);
+	vector<Pair> pairs = compare(descr1, descr2, thresh);
+
+    #ifdef Image_Stitch_DEBUG
+    cout << "begin ransac" << endl;
+    #endif 
 
 	double h[9];
 	float epsilon = 10.0;
@@ -37,15 +62,19 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
 	descr1.clear();
 	descr2.clear();
 
+	#ifdef Image_Stitch_DEBUG
+	cout << "sitf detect finish" << endl;
+	#endif
+
 	return image_stitch(img1, img2, h, pairs);
 }
 
 void ImageStitch::calc_descriptor(vector<vl_sift_pix*>& descr, VlSiftFilt* siftFilt, 
 	vector<VlSiftKeypoint> &keypoints, const CImg<float> &img) {
 	vl_sift_pix* imageData = new vl_sift_pix[img.width()*img.height()];
-	for (int i = 0; i < img.width(); i++) {
-		for (int j = 0; j < img.height(); j++) {
-			imageData[j*img.width()+i] = img(i, j, 0);
+	for (int i = 0; i < img.height(); i++) {
+		for (int j = 0; j < img.width(); j++) {
+			imageData[i*img.width()+j] = img(j, i, 0);
 		}
 	}
 
@@ -106,31 +135,30 @@ vector<Pair> ImageStitch::compare(const vector<vl_sift_pix*>& descr1,
 
 		}
 
-		if (thresh * best < second_best && bestK != -1) {
-			pairs.push_back(Pair(k1, k2));
+		if (thresh * second_best > best && bestK != -1) {
+			pairs.push_back(Pair(k1, bestK));
 		}
 	}
 	return pairs;
 }
 
-float ImageStitch::calc_euclidean_distance(vl_sift_pix* descr1, vl_sift_pix* descr2) {
-	float acc = 0;
+double ImageStitch::calc_euclidean_distance(vl_sift_pix* descr1, vl_sift_pix* descr2) {
+	double acc = 0;
 	for (int i = 0; i < dimen; i++) {
-		float delta = descr1[i] - descr2[i];
+		double delta = descr1[i] - descr2[i];
 		acc += delta*delta;
 	}
 	return acc;
 }
 
-void ImageStitch::ransac(double h[9], const vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
+void ImageStitch::ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
 	vector<VlSiftKeypoint>& keypoints2, float epsilon) {
 	int loop_times = 10;
 	int max_inliers = 0;
 	double tempH[9];
 	while (loop_times--) {
-		vector<VlSiftKeypoint> kp1 = randomly_select(keypoints1);
-		vector<VlSiftKeypoint> kp2 = randomly_select(keypoints2);
-		calc_homography(kp1, kp2, tempH);
+		vector<Pair> randomPairs = randomly_select(pairs);
+		calc_homography(randomPairs, keypoints1, keypoints2, tempH);
 		int inliers = calc_inliers(pairs, keypoints1, keypoints2, tempH, epsilon);
 		if (inliers > max_inliers) {
 			for (int i = 0; i < 9; i++) {
@@ -138,21 +166,30 @@ void ImageStitch::ransac(double h[9], const vector<Pair>& pairs, vector<VlSiftKe
 			}
 			max_inliers = inliers;
 		}
+
+		#ifdef Image_Stitch_DEBUG
+		cout << "loop_times====>" << loop_times << endl;
+		#endif
 	}
 	recomputer_least_squares(keypoints1, keypoints2, h);
 }
 
-vector<VlSiftKeypoint> ImageStitch::randomly_select(vector<VlSiftKeypoint> keypoints) {
-	vector<VlSiftKeypoint> ret(4);
-	bool flag[keypoints.size()];
+vector<Pair> ImageStitch::randomly_select(vector<Pair> &pairs) {
+	vector<Pair> ret;
+	bool flag[pairs.size()];
 	memset(flag, 0, sizeof(flag));
 	for (int i = 0; i < 4; i++) {
 		while (true) {
 			srand((unsigned)time(0));
-			int randomIndex = rand() % keypoints.size();
+			int randomIndex = rand() % pairs.size();
 			if (flag[randomIndex] == false) {
 				flag[randomIndex] = true;
-				ret[i] = keypoints[randomIndex];
+				ret.push_back(pairs[randomIndex]);
+
+                #ifdef Image_Stitch_DEBUG
+                cout << "random number====>" << randomIndex << endl;
+                #endif
+
 				break;
 			}
 		}
@@ -160,15 +197,14 @@ vector<VlSiftKeypoint> ImageStitch::randomly_select(vector<VlSiftKeypoint> keypo
 	return ret;
 }
 
-void ImageStitch::calc_homography(vector<VlSiftKeypoint> &keypoints1, 
-	vector<VlSiftKeypoint> &keypoints2, double h[9]) {
-	assert(keypoints1.size() == 4);
-	assert(keypoints2.size() == 4);
+void ImageStitch::calc_homography(vector<Pair> &randomPairs, vector<VlSiftKeypoint> &keypoints1,
+    vector<VlSiftKeypoint> &keypoints2, double h[9]) {
+	assert(randomPairs.size() == 4);
 
 	vector<Point2f> srcV, destV;
-	for (int i = 0; i < keypoints1.size(); i++) {
-		srcV.push_back(Point2f(keypoints1[i].x, keypoints1[i].y));
-		destV.push_back(Point2f(keypoints2[i].x, keypoints2[i].y));
+	for (int i = 0; i < randomPairs.size(); i++) {
+		srcV.push_back(Point2f(keypoints1[randomPairs[i].k1].x, keypoints1[randomPairs[i].k1].y));
+		destV.push_back(Point2f(keypoints2[randomPairs[i].k2].x, keypoints2[randomPairs[i].k2].y));
 	}
 
 	Mat matrix = findHomography(srcV, destV);
@@ -190,7 +226,7 @@ int ImageStitch::calc_inliers(vector<Pair> &pairs, vector<VlSiftKeypoint> &keypo
 		double x, y;
 		x = srcP.x*tempH[0] + srcP.y*tempH[1] + tempH[2];
 		y = srcP.x*tempH[3] + srcP.y*tempH[4] + tempH[5];
-		if ((x-destP.x)*(x-destP.x)+(y-destP.y)*(y-destP.y) < epsilon*epsilon) {
+		if ((x-destP.x)*(x-destP.x)+(y-destP.y)*(y-destP.y) < epsilon) {
 			++inliers;
 		}
 	}
@@ -208,6 +244,7 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
     assert(img1.spectrum() == img2.spectrum());
 
 	CImg<float> ret(img1);
+
 	for (int i = 0; i < img1.width(); i++) {
 		for (int j = 0; j < img1.height(); j++) {
 			double x = i*h[0]+j*h[1]+h[2], y = i*h[3]+j*h[4]+h[5];
@@ -241,3 +278,10 @@ CImg<float> ImageStitch::get_gray_image(const CImg<float> &srcImg) {
     }  
     return grayImg;
 }
+
+
+
+
+
+
+
