@@ -33,11 +33,6 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
 	assert(grayImg1.spectrum() == 1);
 	assert(grayImg2.spectrum() == 1);
 
-	#ifdef Image_Stitch_DEBUG
-	grayImg1.display();
-	grayImg2.display();
-	#endif
-
 	VlSiftFilt* siftFilt1 = vl_sift_new(img1.width(), img1.height(), noctaves, nlevels, o_min);
 	VlSiftFilt* siftFilt2 = vl_sift_new(img2.width(), img2.height(), noctaves, nlevels, o_min);
 	vector<vl_sift_pix*> descr1;
@@ -66,7 +61,7 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
 	cout << "sitf detect finish" << endl;
 	#endif
 
-	return image_stitch(img1, img2, h, pairs);
+	return image_stitch(img1, img2, h);
 }
 
 void ImageStitch::calc_descriptor(vector<vl_sift_pix*>& descr, VlSiftFilt* siftFilt, 
@@ -239,23 +234,68 @@ void ImageStitch::recomputer_least_squares(vector<VlSiftKeypoint> &keypoints1,
 }
 
 CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float> &img2, 
-	double h[], vector<Pair> &pairs) {
+	double h[]) {
 
     assert(img1.spectrum() == img2.spectrum());
 
-	CImg<float> ret(img1);
+    Mat m = Mat(3, 3, CV_64FC1, h);
+    Mat inv = m.inv();
 
-	for (int i = 0; i < img1.width(); i++) {
-		for (int j = 0; j < img1.height(); j++) {
+    int width2 = img2.width()-1, height2 = img2.height()-1;
+    Point2f lt(inv.at<double>(0,2), inv.at<double>(1,2)),
+            lb(inv.at<double>(0,0)*0+inv.at<double>(0,1)*height2+inv.at<double>(0,2),
+            	inv.at<double>(1,0)*0+inv.at<double>(1,1)*height2+inv.at<double>(1,2)),
+            rt(inv.at<double>(0,0)*width2+inv.at<double>(0,1)*0+inv.at<double>(0,2),
+            	inv.at<double>(1,0)*width2+inv.at<double>(1,1)*0+inv.at<double>(1,2)),
+            rb(inv.at<double>(0,0)*width2+inv.at<double>(0,1)*height2+inv.at<double>(0,2),
+            	inv.at<double>(1,0)*width2+inv.at<double>(1,1)*height2+inv.at<double>(1,2));
+
+    #ifdef Image_Stitch_DEBUG
+    cout << "inv===>\n" << inv << endl;
+    cout << "lt====>(" << lt.x << "," << lt.y << ")\n";
+    cout << "lb====>(" << lb.x << "," << lb.y << ")\n";
+    cout << "rt====>(" << rt.x << "," << rt.y << ")\n";
+    cout << "rb====>(" << rb.x << "," << rb.y << ")\n";
+    #endif
+
+    int maxWidth = max(lt.x, max(lb.x, max(rt.x, rb.x)));
+
+	CImg<float> ret(maxWidth, img1.height(), 1, img1.spectrum(), 0);
+
+	for (int i = 0; i < ret.width(); i++) {
+		for (int j = 0; j < ret.height(); j++) {
 			double x = i*h[0]+j*h[1]+h[2], y = i*h[3]+j*h[4]+h[5];
 			if (x >= 0 && x < img2.width() && y >= 0 && y < img2.height()) {
+				double u = x - (int)x, v = y - (int)y;
 				for (int channel = 0; channel < img1.spectrum(); channel++) {
-					ret(i, j, 0, channel) = img2((int)x, (int)y, 0, channel);
+                    ret(i, j, 0, channel) = 
+                        (int)((1-u)*(1-v)*img2(valueWidth(x, img2.width()), valueHeight(y, img2.height()), 0, channel)
+                        +(1-u)*v*img2(valueWidth(x, img2.width()), valueHeight(y+1, img2.height()), 0, channel)
+                        +u*(1-v)*img2(valueWidth(x+1, img2.width()), valueHeight(y, img2.height()), 0, channel)
+                        +u*v*img2(valueWidth(x+1, img2.width()), valueHeight(y+1, img2.height()), 0, channel));
+				}
+			} else if (i >= 0 && i <img1.width() && j >= 0 && j < img1.height()) {
+				for (int channel = 0; channel < img1.spectrum(); channel++) {
+					ret(i, j, 0, channel) = img1(i, j, 0, channel);
 				}
 			}
 		}
 	}
 	return ret;
+}
+
+// 检查像素位置，防止超过图片宽度
+int ImageStitch::valueWidth(double srcX, int width) {
+    if (srcX < 0) srcX = 0;
+    if (srcX >= width) srcX--;
+    return srcX;
+}
+
+// 检查像素位置，防止超过图片高度
+int ImageStitch::valueHeight(double srcY, int height) {
+    if (srcY < 0) srcY = 0;
+    if (srcY >= height) srcY--;
+    return srcY;
 }
 
 CImg<float> ImageStitch::get_gray_image(const CImg<float> &srcImg) {

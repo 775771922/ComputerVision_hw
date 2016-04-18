@@ -8,6 +8,7 @@ using namespace std;
 extern "C" {
 	#include "vl/generic.h"
 	#include "vl/sift.h"
+	#include "vl/kdtree.h"
 }
 
 #define Image_Stitch_DEBUG
@@ -27,6 +28,8 @@ struct Pair {
 class ImageStitch {
 private:
 	int noctaves, nlevels, o_min;
+    int valueWidth(double srcX, int width);
+    int valueHeight(double srcY, int height);
 	CImg<float> get_gray_image(const CImg<float> &srcImg);
 	vector<Pair> compare(const vector<vl_sift_pix*>& descr1, 
 		const vector<vl_sift_pix*>& descr2, float thresh);
@@ -41,13 +44,12 @@ private:
     	vector<VlSiftKeypoint> &keypoints2, double tempH[9], float epsilon);
     void recomputer_least_squares(vector<VlSiftKeypoint> &keypoints1, 
     	vector<VlSiftKeypoint> &keypoints2, double h[9]);
-
-	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2, 
-		double h[], vector<Pair> &pairs);
+	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2, double h[]);
 	double calc_euclidean_distance(vl_sift_pix* descr1, vl_sift_pix* descr2);
 public:
 	ImageStitch(int octaves, int levels, int o_min);
 	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2);
+	CImg<float> image_stitch(vector<CImg<float> > &imgs);
 	
 
 };

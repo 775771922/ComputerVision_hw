@@ -19,7 +19,7 @@ test: image_stitch test.cpp
 	$(CC) $(GG) $(CV) $(VL) -o test test.cpp image_stitch.o
 
 image_stitch: image_stitch.cpp
-	$(CC) $(GG) $(CV) $(VL) -c image_stitch.cpp
+	$(CC) $(GG) -c image_stitch.cpp
 
 
 clean:
