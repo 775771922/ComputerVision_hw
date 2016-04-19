@@ -16,6 +16,11 @@ extern "C" {
 // deminsion for sift descriptor
 const int dimen = 128;
 
+struct ImgFeature {
+	vector<VlSiftKeypoint> keypoints;
+	vector<vl_sift_pix*> descr;
+};
+
 struct Pair {
 	int k1;
 	int k2;
@@ -50,6 +55,16 @@ public:
 	ImageStitch(int octaves, int levels, int o_min);
 	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2);
 	CImg<float> image_stitch(vector<CImg<float> > &imgs);
+
+	CImg<float> image_stitch(const vector<CImg<float> > &imgs);
+	vector<CImg<float> > image_merge(vector<CImg<float> > &imgs);
+	void calc_img_feature(vector<ImgFeature> &imgsFeature, const CImg<float> &img);
+	bool all_matched(bool* isMatched, int size);
+    int random_index(bool *isMatched, int size);
+    int find_nearest_neighbor(int cur, vector<CImg<float> > &imgs, bool *isMatched, 
+	    vector<ImgFeature> &imgsFeature, vector<Pair> &pointPairs);
+    CImg<float> image_stitch(CImg<float> &l, CImg<float> &r, ImgFeature &lf, 
+    	ImgFeature &rf, vector<Pair> &pairs);
 	
 
 };

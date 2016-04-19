@@ -1,10 +1,13 @@
 #include "image_stitch.h"
 #include "opencv2/opencv.hpp"
 #include <cmath>
+#include <memory.h>
 #include <float.h>
 #include <cstdlib>
 #include <ctime>
 #include <fstream>
+#include <list>
+#include <map>
 using namespace cv;
 
 
@@ -25,6 +28,158 @@ void draw_point(CImg<float> &img, int x, int y, double circle) {
 ImageStitch::ImageStitch(int octaves, int levels, int o_min)
            : noctaves(octaves), nlevels(levels), o_min(o_min) {
 }
+
+CImg<float> ImageStitch::image_stitch(const vector<CImg<float> > &imgs) {
+	vector<CImg<float> > merge(imgs);
+	// for (int i = 0; i < merge.size(); i++) {
+	// 	merge[i] = get_gray_image(merge[i]);
+	// }
+	while (merge.size() != 1) {
+		assert(merge.size() > 0);
+		merge = image_merge(merge);
+	}
+	return merge[0];
+}
+
+vector<CImg<float> > ImageStitch::image_merge(vector<CImg<float> > &imgs) {
+	bool *isMatched = new bool[imgs.size()];
+	memset(isMatched, 0, sizeof(bool)*imgs.size());
+	vector<CImg<float> > res;
+	vector<ImgFeature> imgsFeature;
+	for (int i = 0; i < imgs.size(); i++) {
+		calc_img_feature(imgsFeature, imgs[i]);
+	}
+	while (!all_matched(isMatched, imgs.size())) {
+		int rIndex = random_index(isMatched, imgs.size());
+		isMatched[rIndex] = true;
+		vector<Pair> pointPairs;
+		int neighbor = find_nearest_neighbor(rIndex, imgs, isMatched, imgsFeature, pointPairs);
+		if (neighbor != -1) {
+			CImg<float> stitchImg = image_stitch(imgs[rIndex], imgs[neighbor], imgsFeature[rIndex], 
+				imgsFeature[neighbor], pointPairs);
+			res.push_back(stitchImg);
+	    } else {
+	    	res.push_back(imgs[rIndex]);
+	    }
+	}
+
+	delete [] isMatched;
+	imgs.clear();
+	return res;
+}
+
+void ImageStitch::calc_img_feature(vector<ImgFeature> &imgsFeature, const CImg<float> &img) {
+	CImg<float> tempImg(img);
+	if (tempImg.spectrum() != 1) {
+		tempImg = get_gray_image(img);
+	}
+
+	ImgFeature feature;
+	VlSiftFilt* siftFilt = vl_sift_new(tempImg.width(), tempImg.height(), noctaves, nlevels, o_min);
+	vl_sift_pix* imageData = new vl_sift_pix[tempImg.width()*tempImg.height()];
+	for (int i = 0; i < tempImg.height(); i++) {
+		for (int j = 0; j < tempImg.width(); j++) {
+			imageData[i*tempImg.width()+j] = tempImg(j, i, 0);
+		}
+	}
+	if (vl_sift_process_first_octave(siftFilt, imageData) != VL_ERR_EOF) {
+		while (true) {
+			vl_sift_detect(siftFilt);
+			VlSiftKeypoint *keyPoint = siftFilt->keys;
+			for (int i = 0; i < siftFilt->nkeys; i++) {
+				VlSiftKeypoint tempKeyPoint = *keyPoint;
+				feature.keypoints.push_back(tempKeyPoint);
+				keyPoint++;
+				double angles[4];
+				vl_sift_calc_keypoint_orientations(siftFilt, angles, &tempKeyPoint);
+				// 默认只取第一个角度的描述符
+				vl_sift_pix* descriptors = new vl_sift_pix[dimen];
+				vl_sift_calc_keypoint_descriptor(siftFilt, descriptors, &tempKeyPoint, angles[0]);
+				feature.descr.push_back(descriptors);
+			}
+			if (vl_sift_process_next_octave(siftFilt) == VL_ERR_EOF) {
+				break;
+			}
+		}
+	}
+	imgsFeature.push_back(feature);
+	delete [] imageData;
+	imageData = NULL;
+	siftFilt = NULL;
+}
+
+bool ImageStitch::all_matched(bool* isMatched, int size) {
+	for (int i = 0; i < size; i++) {
+		if (!isMatched[i]) {
+			return false;
+		}
+	}
+	return true;
+}
+
+int ImageStitch::random_index(bool *isMatched, int size) {
+	srand((unsigned)time(0));
+	while (true) {
+		//srand((unsigned)time(0));
+		int randomIndex = rand() % size;
+		if (isMatched[randomIndex] == false) {
+			return randomIndex;
+		}
+	}
+}
+
+int ImageStitch::find_nearest_neighbor(int cur, vector<CImg<float> > &imgs, bool *isMatched, 
+	vector<ImgFeature> &imgsFeature, vector<Pair> &pointPairs) {
+	
+	for (int i = 0; i < imgs.size(); i++) {
+		if (isMatched[i] == false) {
+			//vector<Pair> pairs;
+			VlKDForest* forest = vl_kdforest_new(VL_TYPE_FLOAT, 128, 1, VlDistanceL1);
+
+            // 为当前image构建kd树
+            vector<vl_sift_pix*> descr = imgsFeature[cur].descr;
+			float *data = new float[128*descr.size()];
+			int k = 0;
+			for (auto it = descr.begin(); it != descr.end(); it++) {
+				vl_sift_pix* originData = *it;
+				for (int index = 0; index < 128; index++) {
+					data[index+k*128] = originData[index];
+				}
+				k++;
+			}
+			vl_kdforest_build(forest, descr.size(), data);
+
+			VlKDForestSearcher* searcher = vl_kdforest_new_searcher(forest);
+			VlKDForestNeighbor neighbors[2];
+
+            // 遍历待搜索的图片特征，找到最匹配的点对
+			descr = imgsFeature[i].descr;
+			for (int j = 0; j < descr.size(); j++) {
+				int nvisited = vl_kdforestsearcher_query(searcher, neighbors, 2, descr[j]);
+				if (neighbors[0].distance < neighbors[1].distance * 0.5) {
+					// neighbors[0].index表示kd树中最佳匹配点的位置
+					pointPairs.push_back(Pair(neighbors[0].index, j));
+				}
+			}
+
+            // 匹配点对超过20个才认为两张图有公共部分
+			if (pointPairs.size() > 20) {
+				return i;
+			}
+
+		}
+	}
+	return -1;
+}
+
+CImg<float> ImageStitch::image_stitch(CImg<float> &l, CImg<float> &r, ImgFeature &lf, ImgFeature &rf, 
+	vector<Pair> &pairs) {
+	double h[9];
+	float epsilon = 10.0;
+	ransac(h, pairs, lf.keypoints, rf.keypoints, epsilon);
+	return image_stitch(l, r, h);
+}
+
 
 CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float> &img2) {
 	CImg<float> grayImg1 = get_gray_image(img1);
@@ -174,8 +329,8 @@ vector<Pair> ImageStitch::randomly_select(vector<Pair> &pairs) {
 	bool flag[pairs.size()];
 	memset(flag, 0, sizeof(flag));
 	for (int i = 0; i < 4; i++) {
+		srand((unsigned)time(0));
 		while (true) {
-			srand((unsigned)time(0));
 			int randomIndex = rand() % pairs.size();
 			if (flag[randomIndex] == false) {
 				flag[randomIndex] = true;
@@ -318,6 +473,8 @@ CImg<float> ImageStitch::get_gray_image(const CImg<float> &srcImg) {
     }  
     return grayImg;
 }
+
+
 
 
 
