@@ -30,13 +30,19 @@ ImageStitch::ImageStitch(int octaves, int levels, int o_min)
 }
 
 CImg<float> ImageStitch::image_stitch(const vector<CImg<float> > &imgs) {
+	srand((unsigned)time(0));
 	vector<CImg<float> > merge(imgs);
-	// for (int i = 0; i < merge.size(); i++) {
-	// 	merge[i] = get_gray_image(merge[i]);
-	// }
 	while (merge.size() != 1) {
 		assert(merge.size() > 0);
 		merge = image_merge(merge);
+
+		#ifdef Image_Stitch_DEBUG
+		//printf("merge====> %lu\n", merge.size());
+		for (int i = 0; i < merge.size(); i++) {
+			//string name('0');
+			merge[i].display();
+		}
+		#endif
 	}
 	return merge[0];
 }
@@ -54,6 +60,17 @@ vector<CImg<float> > ImageStitch::image_merge(vector<CImg<float> > &imgs) {
 		isMatched[rIndex] = true;
 		vector<Pair> pointPairs;
 		int neighbor = find_nearest_neighbor(rIndex, imgs, isMatched, imgsFeature, pointPairs);
+
+		#ifdef Image_Stitch_DEBUG
+		char c;
+		cin >> c;
+		cout << "rIndex====>" << rIndex << " neighbor====>" << neighbor << endl;
+		for (int i = 0; i < imgs.size(); i++) {
+			cout << isMatched[i] << " ";
+		}
+		cout << endl;
+		#endif
+
 		if (neighbor != -1) {
 			CImg<float> stitchImg = image_stitch(imgs[rIndex], imgs[neighbor], imgsFeature[rIndex], 
 				imgsFeature[neighbor], pointPairs);
@@ -118,7 +135,7 @@ bool ImageStitch::all_matched(bool* isMatched, int size) {
 }
 
 int ImageStitch::random_index(bool *isMatched, int size) {
-	srand((unsigned)time(0));
+	//srand((unsigned)time(0));
 	while (true) {
 		//srand((unsigned)time(0));
 		int randomIndex = rand() % size;
@@ -164,6 +181,7 @@ int ImageStitch::find_nearest_neighbor(int cur, vector<CImg<float> > &imgs, bool
 
             // 匹配点对超过20个才认为两张图有公共部分
 			if (pointPairs.size() > 20) {
+				isMatched[i] = true;
 				return i;
 			}
 
@@ -182,6 +200,7 @@ CImg<float> ImageStitch::image_stitch(CImg<float> &l, CImg<float> &r, ImgFeature
 
 
 CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float> &img2) {
+	srand((unsigned)time(0));
 	CImg<float> grayImg1 = get_gray_image(img1);
 	CImg<float> grayImg2 = get_gray_image(img2);
 
@@ -303,10 +322,12 @@ double ImageStitch::calc_euclidean_distance(vl_sift_pix* descr1, vl_sift_pix* de
 
 void ImageStitch::ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
 	vector<VlSiftKeypoint>& keypoints2, float epsilon) {
-	int loop_times = 10;
+	int loop_times = 100;
 	int max_inliers = 0;
 	double tempH[9];
-	while (loop_times--) {
+	//srand((unsigned)time(0));
+	bool isFound = false;
+	while (loop_times--&&!isFound) {
 		vector<Pair> randomPairs = randomly_select(pairs);
 		calc_homography(randomPairs, keypoints1, keypoints2, tempH);
 		int inliers = calc_inliers(pairs, keypoints1, keypoints2, tempH, epsilon);
@@ -317,8 +338,12 @@ void ImageStitch::ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint
 			max_inliers = inliers;
 		}
 
+		if (inliers > pairs.size()*0.8) {
+			isFound = true;
+		}
+
 		#ifdef Image_Stitch_DEBUG
-		cout << "loop_times====>" << loop_times << endl;
+		//cout << "loop_times====>" << loop_times << endl;
 		#endif
 	}
 	recomputer_least_squares(keypoints1, keypoints2, h);
@@ -329,7 +354,7 @@ vector<Pair> ImageStitch::randomly_select(vector<Pair> &pairs) {
 	bool flag[pairs.size()];
 	memset(flag, 0, sizeof(flag));
 	for (int i = 0; i < 4; i++) {
-		srand((unsigned)time(0));
+		
 		while (true) {
 			int randomIndex = rand() % pairs.size();
 			if (flag[randomIndex] == false) {
@@ -337,7 +362,7 @@ vector<Pair> ImageStitch::randomly_select(vector<Pair> &pairs) {
 				ret.push_back(pairs[randomIndex]);
 
                 #ifdef Image_Stitch_DEBUG
-                cout << "random number====>" << randomIndex << endl;
+                //cout << "random number====>" << randomIndex << endl;
                 #endif
 
 				break;
@@ -406,36 +431,53 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
             	inv.at<double>(1,0)*width2+inv.at<double>(1,1)*height2+inv.at<double>(1,2));
 
     #ifdef Image_Stitch_DEBUG
-    cout << "inv===>\n" << inv << endl;
-    cout << "lt====>(" << lt.x << "," << lt.y << ")\n";
-    cout << "lb====>(" << lb.x << "," << lb.y << ")\n";
-    cout << "rt====>(" << rt.x << "," << rt.y << ")\n";
-    cout << "rb====>(" << rb.x << "," << rb.y << ")\n";
+    // cout << "inv===>\n" << inv << endl;
+    // cout << "lt====>(" << lt.x << "," << lt.y << ")\n";
+    // cout << "lb====>(" << lb.x << "," << lb.y << ")\n";
+    // cout << "rt====>(" << rt.x << "," << rt.y << ")\n";
+    // cout << "rb====>(" << rb.x << "," << rb.y << ")\n";
     #endif
 
-    int maxWidth = max(lt.x, max(lb.x, max(rt.x, rb.x)));
+    int maxX = max(lt.x, max(lb.x, max(rt.x, rb.x)));
+    int minX = min(lt.x, min(lb.x, min(rt.x, rb.x)));
 
-	CImg<float> ret(maxWidth, img1.height(), 1, img1.spectrum(), 0);
+    cout << "maxX===>" << maxX << endl;
+    cout << "minX===>" << minX << endl;
+
+    int offsetX;
+    CImg<float> ret;
+    // img2映射在img1的左边
+    if (minX < 0) {
+    	offsetX = 0 - minX;
+    	ret.assign(abs(minX)+img1.width(), img1.height(), 1, img1.spectrum(), 0);
+    } else if (maxX > img1.width()) {  // img2映射在img1的右边
+    	offsetX = 0;
+    	ret.assign(maxX, img1.height(), 1, img1.spectrum(), 0);
+    } else {
+    	assert(false); // 不应该发生这种情况
+    }
 
 	for (int i = 0; i < ret.width(); i++) {
 		for (int j = 0; j < ret.height(); j++) {
-			double x = i*h[0]+j*h[1]+h[2], y = i*h[3]+j*h[4]+h[5];
+			int ii = i - offsetX;
+			double x = ii*h[0]+j*h[1]+h[2], y = ii*h[3]+j*h[4]+h[5];
 			if (x >= 0 && x < img2.width() && y >= 0 && y < img2.height()) {
 				double u = x - (int)x, v = y - (int)y;
-				for (int channel = 0; channel < img1.spectrum(); channel++) {
+    			for (int channel = 0; channel < img1.spectrum(); channel++) {
                     ret(i, j, 0, channel) = 
                         (int)((1-u)*(1-v)*img2(valueWidth(x, img2.width()), valueHeight(y, img2.height()), 0, channel)
                         +(1-u)*v*img2(valueWidth(x, img2.width()), valueHeight(y+1, img2.height()), 0, channel)
                         +u*(1-v)*img2(valueWidth(x+1, img2.width()), valueHeight(y, img2.height()), 0, channel)
-                        +u*v*img2(valueWidth(x+1, img2.width()), valueHeight(y+1, img2.height()), 0, channel));
-				}
-			} else if (i >= 0 && i <img1.width() && j >= 0 && j < img1.height()) {
+                        +u*v*img2(valueWidth(x+1, img2.width()), valueHeight(y+1, img2.height()), 0, channel));    				
+    			}
+			} else if (ii >= 0 && ii < img1.width() && j >= 0 && j < img1.height()) {
 				for (int channel = 0; channel < img1.spectrum(); channel++) {
-					ret(i, j, 0, channel) = img1(i, j, 0, channel);
-				}
-			}
-		}
-	}
+					ret(i, j, 0, channel) = img1(ii, j, 0, channel);    				
+			    }
+		    }
+     	}
+    }
+   
 	return ret;
 }
 

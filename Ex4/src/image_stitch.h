@@ -54,7 +54,6 @@ private:
 public:
 	ImageStitch(int octaves, int levels, int o_min);
 	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2);
-	CImg<float> image_stitch(vector<CImg<float> > &imgs);
 
 	CImg<float> image_stitch(const vector<CImg<float> > &imgs);
 	vector<CImg<float> > image_merge(vector<CImg<float> > &imgs);
