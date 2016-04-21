@@ -11,7 +11,7 @@ extern "C" {
 	#include "vl/kdtree.h"
 }
 
-#define Image_Stitch_DEBUG
+//#define Image_Stitch_DEBUG
 
 // deminsion for sift descriptor
 const int dimen = 128;
@@ -51,11 +51,6 @@ private:
     	vector<VlSiftKeypoint> &keypoints2, double h[9]);
 	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2, double h[]);
 	double calc_euclidean_distance(vl_sift_pix* descr1, vl_sift_pix* descr2);
-public:
-	ImageStitch(int octaves, int levels, int o_min);
-	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2);
-
-	CImg<float> image_stitch(const vector<CImg<float> > &imgs);
 	vector<CImg<float> > image_merge(vector<CImg<float> > &imgs);
 	void calc_img_feature(vector<ImgFeature> &imgsFeature, const CImg<float> &img);
 	bool all_matched(bool* isMatched, int size);
@@ -64,7 +59,11 @@ public:
 	    vector<ImgFeature> &imgsFeature, vector<Pair> &pointPairs);
     CImg<float> image_stitch(CImg<float> &l, CImg<float> &r, ImgFeature &lf, 
     	ImgFeature &rf, vector<Pair> &pairs);
-	
+public:
+	ImageStitch(int octaves, int levels, int o_min);
+	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2);
+
+	CImg<float> image_stitch(const vector<CImg<float> > &imgs);	
 
 };
 

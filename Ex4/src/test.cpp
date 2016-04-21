@@ -1,7 +1,9 @@
 #include "image_stitch.h"
 #include <iostream>
 #include <string>
+#include <cstdio>
 #include <cstring>
+#include <time.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -16,7 +18,6 @@ int main(int argc, char** argv) {
 	if (argc <= 1) {
 		return 0;
 	} else if (argc == 2) {
-		cout << "argv[1]===>" << argv[1] << endl;
     	string file(argv[1]);
 		size_t dot_index = file.find(".");
 
@@ -36,18 +37,17 @@ int main(int argc, char** argv) {
 
 	int noctaves = 5, nlevels = 3, o_min = 0;
 	ImageStitch imageStitch(noctaves, nlevels, o_min);
-
 	vector<CImg<float> > imgs;
 	for (int i = 0; i < files.size(); i++) {
-		//CImg<float> img(files[i]);
-		cout << "filename====>" << files[i] << endl;
 		imgs.push_back(CImg<float>(files[i].c_str()));
-		//imgs[i].display();
 	}
-	// CImg<float> img1(argv[1]);
-	// CImg<float> img2(argv[2]);
-    // CImg<float> res = imageStitch.image_stitch(img1, img2);
+
+    time_t start, end;
+    start = clock();
     CImg<float> res = imageStitch.image_stitch(imgs);
+    end = clock();
+    printf("the running time is : %f\n", double(end-start)/CLOCKS_PER_SEC);
+
 	res.display();
 	res.save_jpeg("res.jpg");
 

@@ -10,6 +10,7 @@
 #include <map>
 using namespace cv;
 
+int num = 0;
 
 void draw_point(CImg<float> &img, int x, int y, double circle) {
 	assert(x >= 0 && x < img.width() && y >= 0 && y < img.height());
@@ -39,8 +40,11 @@ CImg<float> ImageStitch::image_stitch(const vector<CImg<float> > &imgs) {
 		#ifdef Image_Stitch_DEBUG
 		//printf("merge====> %lu\n", merge.size());
 		for (int i = 0; i < merge.size(); i++) {
-			//string name('0');
 			merge[i].display();
+			char c[2] = "0";
+			c[0] += num++;
+			string name = "merge" + string(c) + ".jpg";
+			merge[i].save_jpeg(name.c_str());
 		}
 		#endif
 	}
@@ -55,15 +59,17 @@ vector<CImg<float> > ImageStitch::image_merge(vector<CImg<float> > &imgs) {
 	for (int i = 0; i < imgs.size(); i++) {
 		calc_img_feature(imgsFeature, imgs[i]);
 	}
+	
 	while (!all_matched(isMatched, imgs.size())) {
 		int rIndex = random_index(isMatched, imgs.size());
+		
 		isMatched[rIndex] = true;
 		vector<Pair> pointPairs;
 		int neighbor = find_nearest_neighbor(rIndex, imgs, isMatched, imgsFeature, pointPairs);
 
 		#ifdef Image_Stitch_DEBUG
-		char c;
-		cin >> c;
+		//char c;
+		//cin >> c;
 		cout << "rIndex====>" << rIndex << " neighbor====>" << neighbor << endl;
 		for (int i = 0; i < imgs.size(); i++) {
 			cout << isMatched[i] << " ";
@@ -151,16 +157,16 @@ int ImageStitch::find_nearest_neighbor(int cur, vector<CImg<float> > &imgs, bool
 	for (int i = 0; i < imgs.size(); i++) {
 		if (isMatched[i] == false) {
 			//vector<Pair> pairs;
-			VlKDForest* forest = vl_kdforest_new(VL_TYPE_FLOAT, 128, 1, VlDistanceL1);
+			VlKDForest* forest = vl_kdforest_new(VL_TYPE_FLOAT, dimen, 1, VlDistanceL1);
 
             // 为当前image构建kd树
             vector<vl_sift_pix*> descr = imgsFeature[cur].descr;
-			float *data = new float[128*descr.size()];
+			float *data = new float[dimen*descr.size()];
 			int k = 0;
 			for (auto it = descr.begin(); it != descr.end(); it++) {
 				vl_sift_pix* originData = *it;
-				for (int index = 0; index < 128; index++) {
-					data[index+k*128] = originData[index];
+				for (int index = 0; index < dimen; index++) {
+					data[index+k*dimen] = originData[index];
 				}
 				k++;
 			}
@@ -193,7 +199,7 @@ int ImageStitch::find_nearest_neighbor(int cur, vector<CImg<float> > &imgs, bool
 CImg<float> ImageStitch::image_stitch(CImg<float> &l, CImg<float> &r, ImgFeature &lf, ImgFeature &rf, 
 	vector<Pair> &pairs) {
 	double h[9];
-	float epsilon = 10.0;
+	float epsilon = 6.0;
 	ransac(h, pairs, lf.keypoints, rf.keypoints, epsilon);
 	return image_stitch(l, r, h);
 }
@@ -322,11 +328,16 @@ double ImageStitch::calc_euclidean_distance(vl_sift_pix* descr1, vl_sift_pix* de
 
 void ImageStitch::ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
 	vector<VlSiftKeypoint>& keypoints2, float epsilon) {
-	int loop_times = 100;
+	int loop_times = 800;
 	int max_inliers = 0;
 	double tempH[9];
-	//srand((unsigned)time(0));
 	bool isFound = false;
+
+    #ifdef Image_Stitch_DEBUG
+    ofstream fout("point.txt");
+    fout << "all keyPoint===>" << keypoints1.size() << endl;
+    #endif
+
 	while (loop_times--&&!isFound) {
 		vector<Pair> randomPairs = randomly_select(pairs);
 		calc_homography(randomPairs, keypoints1, keypoints2, tempH);
@@ -343,7 +354,8 @@ void ImageStitch::ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint
 		}
 
 		#ifdef Image_Stitch_DEBUG
-		//cout << "loop_times====>" << loop_times << endl;
+		cout << "loop_times====>" << loop_times << endl;
+		fout << "inliers===>" << inliers << endl;
 		#endif
 	}
 	recomputer_least_squares(keypoints1, keypoints2, h);
@@ -353,8 +365,13 @@ vector<Pair> ImageStitch::randomly_select(vector<Pair> &pairs) {
 	vector<Pair> ret;
 	bool flag[pairs.size()];
 	memset(flag, 0, sizeof(flag));
+
+	#ifdef Image_Stitch_DEBUG
+	// ofstream fout("random.txt", ofstream::app);
+	// fout << "randomly_select" << endl;
+	#endif
+
 	for (int i = 0; i < 4; i++) {
-		
 		while (true) {
 			int randomIndex = rand() % pairs.size();
 			if (flag[randomIndex] == false) {
@@ -362,7 +379,7 @@ vector<Pair> ImageStitch::randomly_select(vector<Pair> &pairs) {
 				ret.push_back(pairs[randomIndex]);
 
                 #ifdef Image_Stitch_DEBUG
-                //cout << "random number====>" << randomIndex << endl;
+                //fout << "random number====>" << randomIndex << endl;
                 #endif
 
 				break;
@@ -401,7 +418,7 @@ int ImageStitch::calc_inliers(vector<Pair> &pairs, vector<VlSiftKeypoint> &keypo
 		double x, y;
 		x = srcP.x*tempH[0] + srcP.y*tempH[1] + tempH[2];
 		y = srcP.x*tempH[3] + srcP.y*tempH[4] + tempH[5];
-		if ((x-destP.x)*(x-destP.x)+(y-destP.y)*(y-destP.y) < epsilon) {
+		if ((x-destP.x)*(x-destP.x)+(y-destP.y)*(y-destP.y) < epsilon*epsilon) {
 			++inliers;
 		}
 	}
@@ -430,19 +447,13 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
             rb(inv.at<double>(0,0)*width2+inv.at<double>(0,1)*height2+inv.at<double>(0,2),
             	inv.at<double>(1,0)*width2+inv.at<double>(1,1)*height2+inv.at<double>(1,2));
 
-    #ifdef Image_Stitch_DEBUG
-    // cout << "inv===>\n" << inv << endl;
-    // cout << "lt====>(" << lt.x << "," << lt.y << ")\n";
-    // cout << "lb====>(" << lb.x << "," << lb.y << ")\n";
-    // cout << "rt====>(" << rt.x << "," << rt.y << ")\n";
-    // cout << "rb====>(" << rb.x << "," << rb.y << ")\n";
-    #endif
-
     int maxX = max(lt.x, max(lb.x, max(rt.x, rb.x)));
     int minX = min(lt.x, min(lb.x, min(rt.x, rb.x)));
 
+    #ifdef Image_Stitch_DEBUG
     cout << "maxX===>" << maxX << endl;
     cout << "minX===>" << minX << endl;
+    #endif
 
     int offsetX;
     CImg<float> ret;
@@ -461,7 +472,30 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
 		for (int j = 0; j < ret.height(); j++) {
 			int ii = i - offsetX;
 			double x = ii*h[0]+j*h[1]+h[2], y = ii*h[3]+j*h[4]+h[5];
-			if (x >= 0 && x < img2.width() && y >= 0 && y < img2.height()) {
+			if (ii >= 0 && ii < img1.width() && j >= 0 && j < img1.height()) {
+				if (x >= 0 && x < img2.width() && y >= 0 && y < img2.height()) {  // 公共区域
+				    double u = x - (int)x, v = y - (int)y;
+				    for (int channel = 0; channel < img1.spectrum(); channel++) {
+				    	double colorOfImg2 = (1-u)*(1-v)*img2(valueWidth(x, img2.width()), valueHeight(y, img2.height()), 0, channel)
+                                  +(1-u)*v*img2(valueWidth(x, img2.width()), valueHeight(y+1, img2.height()), 0, channel)
+                                  +u*(1-v)*img2(valueWidth(x+1, img2.width()), valueHeight(y, img2.height()), 0, channel)
+                                  +u*v*img2(valueWidth(x+1, img2.width()), valueHeight(y+1, img2.height()), 0, channel);
+                        if (abs(colorOfImg2-0.0) < 0.0001) {
+                        	ret(i, j, 0, channel) = img1(ii, j, 0, channel); 
+                        } else if (img1(ii, j, 0, channel) == 0) {
+                        	ret(i, j, 0, channel) = (int)colorOfImg2;
+                        } else {
+                        	ret(i, j, 0, channel) = (int)(colorOfImg2*0.5+img1(ii, j, 0, channel)*0.5);
+                        	//ret(i, j, 0, channel) = img1(ii, j, 0, channel); 
+                        }
+                        
+				    }
+				} else {
+				    for (int channel = 0; channel < img1.spectrum(); channel++) {
+					    ret(i, j, 0, channel) = img1(ii, j, 0, channel);    				
+			        }
+				}
+		    } else if (x >= 0 && x < img2.width() && y >= 0 && y < img2.height()) {
 				double u = x - (int)x, v = y - (int)y;
     			for (int channel = 0; channel < img1.spectrum(); channel++) {
                     ret(i, j, 0, channel) = 
@@ -470,11 +504,7 @@ CImg<float> ImageStitch::image_stitch(const CImg<float> &img1, const CImg<float>
                         +u*(1-v)*img2(valueWidth(x+1, img2.width()), valueHeight(y, img2.height()), 0, channel)
                         +u*v*img2(valueWidth(x+1, img2.width()), valueHeight(y+1, img2.height()), 0, channel));    				
     			}
-			} else if (ii >= 0 && ii < img1.width() && j >= 0 && j < img1.height()) {
-				for (int channel = 0; channel < img1.spectrum(); channel++) {
-					ret(i, j, 0, channel) = img1(ii, j, 0, channel);    				
-			    }
-		    }
+			}
      	}
     }
    
