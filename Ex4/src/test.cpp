@@ -40,15 +40,23 @@ int main(int argc, char** argv) {
 	vector<CImg<float> > imgs;
 	for (int i = 0; i < files.size(); i++) {
 		imgs.push_back(CImg<float>(files[i].c_str()));
+		imgs[i].display();
 	}
+	files.clear();
 
     time_t start, end;
     start = clock();
+
+    #ifdef DEBUG
+    cout << "image number====>" << imgs.size() << endl;
+    cout << "main====>" << endl;
+    #endif
+
+
     CImg<float> res = imageStitch.image_stitch(imgs);
     end = clock();
     printf("the running time is : %f\n", double(end-start)/CLOCKS_PER_SEC);
 
-	res.display();
 	res.save_jpeg("res.jpg");
 
 }
@@ -77,7 +85,7 @@ vector<string> get_files_from_dir(string dirName) {
 			continue;
 		}
 
-        string postfix[4] = {".bmp", ".jpg", ".jpeg", ".png"};
+        string postfix[5] = {".bmp", ".jpg", ".jpeg", ".JPG", ".png"};
 		for (int i = 0; i < 4; i++) {
 			if (file_path.find(postfix[i]) != string::npos) {
 				files.push_back(file_path);

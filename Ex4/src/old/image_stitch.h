@@ -18,15 +18,15 @@ extern "C" {
 // deminsion for sift descriptor
 const int dimen = 128;
 
+struct ImgAndIndex {
+	CImg<float> img;
+	int index;
+	ImgAndIndex(CImg<float> &inImg, int i): img(inImg), index(i) {}
+};
+
 struct ImgFeature {
 	vector<VlSiftKeypoint> keypoints;
 	vector<vl_sift_pix*> descr;
-	void clear() {
-		keypoints.clear();
-		for (int i = 0; i < descr.size(); i++) {
-			delete [] descr[i];
-		}		
-	}
 };
 
 struct Pair {
@@ -44,6 +44,10 @@ private:
     int valueWidth(double srcX, int width);
     int valueHeight(double srcY, int height);
 	CImg<float> get_gray_image(const CImg<float> &srcImg);
+	vector<Pair> compare(const vector<vl_sift_pix*>& descr1, 
+		const vector<vl_sift_pix*>& descr2, float thresh);
+	void calc_descriptor(vector<vl_sift_pix*>& descr, VlSiftFilt* siftFilt, 
+		vector<VlSiftKeypoint> &keypoints, const CImg<float> &img);
 	void ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
 		vector<VlSiftKeypoint>& keypoints2, float epsilon);
 	vector<Pair> randomly_select(vector<Pair> &pairs);
@@ -53,7 +57,18 @@ private:
     	vector<VlSiftKeypoint> &keypoints2, double tempH[9], float epsilon);
     void recomputer_least_squares(vector<VlSiftKeypoint> &keypoints1, 
     	vector<VlSiftKeypoint> &keypoints2, double h[9]);
+	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2, double h[]);
+	double calc_euclidean_distance(vl_sift_pix* descr1, vl_sift_pix* descr2);
+	vector<CImg<float> > image_merge(vector<CImg<float> > &imgs);
 	void calc_img_feature(vector<ImgFeature> &imgsFeature, const CImg<float> &img);
+	bool all_matched(bool* isMatched, int size);
+    int random_index(bool *isMatched, int size);
+    int find_nearest_neighbor(int cur, vector<CImg<float> > &imgs, bool *isMatched, 
+	    vector<ImgFeature> &imgsFeature, vector<Pair> &pointPairs);
+    CImg<float> image_stitch(CImg<float> &l, CImg<float> &r, ImgFeature &lf, 
+    	ImgFeature &rf, vector<Pair> &pairs);
+
+
 	CImg<float> image_stitch(CImg<float> &res, int neighbor, const vector<CImg<float> > &imgs, 
 		double h[], vector<ImgFeature> &imgFeatures);
 	void image_stitch(CImg<float> &res, int cur, int neighbor, vector<ImgFeature> &imgFeatures, 
@@ -62,6 +77,8 @@ private:
 		vector<ImgFeature> &imgFeatures, map<int, vector<Pair> > &pointPairs);
 public:
 	ImageStitch(int octaves, int levels, int o_min);
+	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2);
+
 	CImg<float> image_stitch(const vector<CImg<float> > &imgs);	
 
 };
