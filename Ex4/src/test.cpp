@@ -36,10 +36,10 @@ int main(int argc, char** argv) {
 
 
 	int noctaves = 5, nlevels = 3, o_min = 0;
-	ImageStitch imageStitch(noctaves, nlevels, o_min);
-	vector<CImg<float> > imgs;
+	ImageStitch<unsigned char> imageStitch(noctaves, nlevels, o_min);
+	vector<CImg<unsigned char> > imgs;
 	for (int i = 0; i < files.size(); i++) {
-		imgs.push_back(CImg<float>(files[i].c_str()));
+		imgs.push_back(CImg<unsigned char>(files[i].c_str()));
 		imgs[i].display();
 	}
 	files.clear();
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
     #endif
 
 
-    CImg<float> res = imageStitch.image_stitch(imgs);
+    CImg<unsigned char> res = imageStitch.image_stitch(imgs);
     end = clock();
     printf("the running time is : %f\n", double(end-start)/CLOCKS_PER_SEC);
 

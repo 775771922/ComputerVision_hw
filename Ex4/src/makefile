@@ -15,12 +15,12 @@ endif
 
 all: test
 
-test: image_stitch test.cpp
-	$(CC) $(GG) $(CV) $(VL) -o test test.cpp image_stitch.o
+test: test.cpp image_stitch.h
+	$(CC) $(GG) $(CV) $(VL) -o test test.cpp
 
-image_stitch: image_stitch.cpp
-	$(CC) $(GG) -c image_stitch.cpp
+# image_stitch: image_stitch.cpp
+# 	$(CC) $(GG) -c image_stitch.cpp
 
 
 clean:
-	rm *.o *.out
+	rm *.o test
