@@ -1,6 +1,7 @@
 #ifndef IMAGE_STITCH_H
 #define IMAGE_STITCH_H
 #include <vector>
+#include <map>
 #include "CImg.h"
 using namespace cimg_library;
 using namespace std;
@@ -12,9 +13,16 @@ extern "C" {
 }
 
 //#define Image_Stitch_DEBUG
+#define DEBUG
 
 // deminsion for sift descriptor
 const int dimen = 128;
+
+struct ImgAndIndex {
+	CImg<float> img;
+	int index;
+	ImgAndIndex(CImg<float> &inImg, int i): img(inImg), index(i) {}
+};
 
 struct ImgFeature {
 	vector<VlSiftKeypoint> keypoints;
@@ -59,6 +67,14 @@ private:
 	    vector<ImgFeature> &imgsFeature, vector<Pair> &pointPairs);
     CImg<float> image_stitch(CImg<float> &l, CImg<float> &r, ImgFeature &lf, 
     	ImgFeature &rf, vector<Pair> &pairs);
+
+
+	CImg<float> image_stitch(CImg<float> &res, int neighbor, const vector<CImg<float> > &imgs, 
+		double h[], vector<ImgFeature> &imgFeatures);
+	void image_stitch(CImg<float> &res, int cur, int neighbor, vector<ImgFeature> &imgFeatures, 
+		map<int, vector<Pair> > &pointPairs, const vector<CImg<float> > &imgs);
+	vector<int> find_nearest_neighbor(int cur, const bool* isProjected, 
+		vector<ImgFeature> &imgFeatures, map<int, vector<Pair> > &pointPairs);
 public:
 	ImageStitch(int octaves, int levels, int o_min);
 	CImg<float> image_stitch(const CImg<float> &img1, const CImg<float> &img2);
