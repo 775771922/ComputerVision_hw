@@ -94,6 +94,9 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
 		calc_img_feature(imgFeatures, imgs[i]);
 	}
 
+	int a;
+	cin >> a;
+
 	#ifdef DEBUG
 	cout << "finish calc_img_feature" << endl;
 	#endif
@@ -136,8 +139,8 @@ string name = "A.jpg";
             #ifdef DEBUG
             
             res.display();
-            name[0]++;
             res.save_jpeg(name.c_str());
+            name[0]++;
             #endif
 
 		}
@@ -148,6 +151,48 @@ string name = "A.jpg";
 	isProjected = NULL;
 
 	return res;
+}
+
+template<class T>
+void ImageStitch<T>::calc_img_feature(vector<ImgFeature> &imgsFeature, const CImg<T> &img) {
+	CImg<T> tempImg(img);
+	if (tempImg.spectrum() != 1) {
+		tempImg = get_gray_image(img);
+	}
+
+	ImgFeature feature;
+	VlSiftFilt* siftFilt = vl_sift_new(tempImg.width(), tempImg.height(), noctaves, nlevels, o_min);
+	vl_sift_pix* imageData = new vl_sift_pix[tempImg.width()*tempImg.height()];
+	for (int i = 0; i < tempImg.height(); i++) {
+		for (int j = 0; j < tempImg.width(); j++) {
+			imageData[i*tempImg.width()+j] = tempImg(j, i, 0);
+		}
+	}
+	if (vl_sift_process_first_octave(siftFilt, imageData) != VL_ERR_EOF) {
+		while (true) {
+			vl_sift_detect(siftFilt);
+			VlSiftKeypoint *keyPoint = siftFilt->keys;
+			for (int i = 0; i < siftFilt->nkeys; i++) {
+				VlSiftKeypoint tempKeyPoint = *keyPoint;
+				feature.keypoints.push_back(tempKeyPoint);
+				keyPoint++;
+				double angles[4];
+				vl_sift_calc_keypoint_orientations(siftFilt, angles, &tempKeyPoint);
+				// 默认只取第一个角度的描述符
+				vl_sift_pix* descriptors = new vl_sift_pix[dimen];
+				vl_sift_calc_keypoint_descriptor(siftFilt, descriptors, &tempKeyPoint, angles[0]);
+				feature.descr.push_back(descriptors);
+			}
+			if (vl_sift_process_next_octave(siftFilt) == VL_ERR_EOF) {
+				break;
+			}
+		}
+	}
+	imgsFeature.push_back(feature);
+	vl_sift_delete(siftFilt);
+	delete [] imageData;
+	imageData = NULL;
+	siftFilt = NULL;
 }
 
 /**
@@ -334,47 +379,6 @@ CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int neighbor,
 }
 
 template<class T>
-void ImageStitch<T>::calc_img_feature(vector<ImgFeature> &imgsFeature, const CImg<T> &img) {
-	CImg<T> tempImg(img);
-	if (tempImg.spectrum() != 1) {
-		tempImg = get_gray_image(img);
-	}
-
-	ImgFeature feature;
-	VlSiftFilt* siftFilt = vl_sift_new(tempImg.width(), tempImg.height(), noctaves, nlevels, o_min);
-	vl_sift_pix* imageData = new vl_sift_pix[tempImg.width()*tempImg.height()];
-	for (int i = 0; i < tempImg.height(); i++) {
-		for (int j = 0; j < tempImg.width(); j++) {
-			imageData[i*tempImg.width()+j] = tempImg(j, i, 0);
-		}
-	}
-	if (vl_sift_process_first_octave(siftFilt, imageData) != VL_ERR_EOF) {
-		while (true) {
-			vl_sift_detect(siftFilt);
-			VlSiftKeypoint *keyPoint = siftFilt->keys;
-			for (int i = 0; i < siftFilt->nkeys; i++) {
-				VlSiftKeypoint tempKeyPoint = *keyPoint;
-				feature.keypoints.push_back(tempKeyPoint);
-				keyPoint++;
-				double angles[4];
-				vl_sift_calc_keypoint_orientations(siftFilt, angles, &tempKeyPoint);
-				// 默认只取第一个角度的描述符
-				vl_sift_pix* descriptors = new vl_sift_pix[dimen];
-				vl_sift_calc_keypoint_descriptor(siftFilt, descriptors, &tempKeyPoint, angles[0]);
-				feature.descr.push_back(descriptors);
-			}
-			if (vl_sift_process_next_octave(siftFilt) == VL_ERR_EOF) {
-				break;
-			}
-		}
-	}
-	imgsFeature.push_back(feature);
-	delete [] imageData;
-	imageData = NULL;
-	siftFilt = NULL;
-}
-
-template<class T>
 void ImageStitch<T>::ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
 	vector<VlSiftKeypoint>& keypoints2, float epsilon) {
 	int loop_times = 800;
@@ -519,7 +523,7 @@ CImg<T> ImageStitch<T>::get_gray_image(const CImg<T> &srcImg) {
         }
     }  
     #ifdef DEBUG
-    grayImg.display();
+    //grayImg.display();
     #endif
     return grayImg;
 }

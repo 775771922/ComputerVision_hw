@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
 	vector<CImg<unsigned char> > imgs;
 	for (int i = 0; i < files.size(); i++) {
 		imgs.push_back(CImg<unsigned char>(files[i].c_str()));
-		imgs[i].display();
+		//imgs[i].display();
 	}
 	files.clear();
 
