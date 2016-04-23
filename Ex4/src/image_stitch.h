@@ -72,6 +72,9 @@ private:
 		map<int, vector<Pair> > &pointPairs, const vector<CImg<T> > &imgs);
 	vector<int> find_nearest_neighbor(int cur, const bool* isProjected, 
 		vector<ImgFeature> &imgFeatures, map<int, vector<Pair> > &pointPairs);
+    vector<CImg<T> > get_laplacian_pyramin(const CImg<T> &img);
+    CImg<T> laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
+	    double h[], int width, int height, int spectrum, int offsetX, int offsetY);
 public:
 	ImageStitch(int octaves, int levels, int o_min);
 	CImg<T> image_stitch(const vector<CImg<T> > &imgs);	
@@ -94,10 +97,13 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
 		calc_img_feature(imgFeatures, imgs[i]);
 	}
 
+	#ifdef DEBUG
+	cout << "feature size====>" << endl;
+	for (int i = 0; i < imgFeatures.size(); i++) {
+		cout << imgFeatures[i].keypoints.size() << endl;
+	}
 	int a;
 	cin >> a;
-
-	#ifdef DEBUG
 	cout << "finish calc_img_feature" << endl;
 	#endif
 
@@ -129,11 +135,15 @@ string name = "A.jpg";
 		cout << "start stitch===>" << endl;
 		#endif
 
+		for (int i = 0; i < neighbors.size(); i++) {
+			isProjected[neighbors[i]] = true;
+		}
+
 
 		for (int i = 0; i < neighbors.size(); i++) {
 			q.push(neighbors[i]);
 			image_stitch(res, cur, neighbors[i], imgFeatures, pointPairs, imgs);
-			isProjected[neighbors[i]] = true;
+			//isProjected[neighbors[i]] = true;
 
 
             #ifdef DEBUG
@@ -225,6 +235,10 @@ vector<int> ImageStitch<T>::find_nearest_neighbor(int cur, const bool* isProject
 
 	vector<int> indexs;
 	for (int i = 0; i < imgFeatures.size(); i++) {
+
+		if (indexs.size() >= 2) {
+			break;
+		}
 
         #ifdef DEBUG
         cout << "i====>" << i << endl;
@@ -352,30 +366,94 @@ CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int neighbor,
     	imgFeatures[neighbor].keypoints[i].y = inv.at<double>(1,0)*x+inv.at<double>(1,1)*y+inv.at<double>(1,2)+offsetY;
     }
 
-    ret.assign(width, height, 1, res.spectrum(), 0);
+    CImg<T> subA(res.width(), res.height(), res.depth(), res.spectrum(), 0);
+    CImg<T> subB(projImg.width(), projImg.height(), projImg.depth(), projImg.spectrum(), 0);
+    
 
-	for (int i = 0; i < ret.width(); i++) {
-		for (int j = 0; j < ret.height(); j++) {
-			int ii = i - offsetX, jj = j - offsetY;
-			double x = ii*h[0]+jj*h[1]+h[2], y = ii*h[3]+jj*h[4]+h[5];
-			if (x >= 0 && x < projImg.width() && y >= 0 && y < projImg.height()) {
-				double u = x - (int)x, v = y - (int)y;
-    			for (int channel = 0; channel < res.spectrum(); channel++) {
-                    ret(i, j, 0, channel) = 
-                        (int)((1-u)*(1-v)*projImg(valueWidth(x, projImg.width()), valueHeight(y, projImg.height()), 0, channel)
-                        +(1-u)*v*projImg(valueWidth(x, projImg.width()), valueHeight(y+1, projImg.height()), 0, channel)
-                        +u*(1-v)*projImg(valueWidth(x+1, projImg.width()), valueHeight(y, projImg.height()), 0, channel)
-                        +u*v*projImg(valueWidth(x+1, projImg.width()), valueHeight(y+1, projImg.height()), 0, channel));    				
-    			}
-			} else if (ii >= 0 && ii < res.width() && jj >= 0 && jj < res.height()) {
-			    for (int channel = 0; channel < res.spectrum(); channel++) {
-				    ret(i, j, 0, channel) = res(ii, jj, 0, channel);    				
-		        }
-		    }
-     	}
-    }
+    vector<CImg<T> > lA = get_laplacian_pyramin(res);
+    vector<CImg<T> > lB = get_laplacian_pyramin(projImg);
+    ret = laplacian_combine(lA, lB, h, width, height, res.spectrum(), offsetX, offsetY);
+
+ //    ret.assign(width, height, 1, res.spectrum(), 0);
+
+	// for (int i = 0; i < ret.width(); i++) {
+	// 	for (int j = 0; j < ret.height(); j++) {
+	// 		int ii = i - offsetX, jj = j - offsetY;
+	// 		double x = ii*h[0]+jj*h[1]+h[2], y = ii*h[3]+jj*h[4]+h[5];
+	// 		if (x >= 0 && x < projImg.width() && y >= 0 && y < projImg.height()) {
+	// 			double u = x - (int)x, v = y - (int)y;
+ //    			for (int channel = 0; channel < res.spectrum(); channel++) {
+ //                    ret(i, j, 0, channel) = 
+ //                        (int)((1-u)*(1-v)*projImg(valueWidth(x, projImg.width()), valueHeight(y, projImg.height()), 0, channel)
+ //                        +(1-u)*v*projImg(valueWidth(x, projImg.width()), valueHeight(y+1, projImg.height()), 0, channel)
+ //                        +u*(1-v)*projImg(valueWidth(x+1, projImg.width()), valueHeight(y, projImg.height()), 0, channel)
+ //                        +u*v*projImg(valueWidth(x+1, projImg.width()), valueHeight(y+1, projImg.height()), 0, channel));    				
+ //    			}
+	// 		} else if (ii >= 0 && ii < res.width() && jj >= 0 && jj < res.height()) {
+	// 		    for (int channel = 0; channel < res.spectrum(); channel++) {
+	// 			    ret(i, j, 0, channel) = res(ii, jj, 0, channel);    				
+	// 	        }
+	// 	    }
+ //     	}
+ //    }
    
 	return ret;
+}
+
+template<class T>
+vector<CImg<T> > ImageStitch<T>::get_laplacian_pyramin(const CImg<T> &img) {
+	vector<CImg<T> > ret;
+	int width = img.width(), height = img.height();
+	CImg<T> g1 = img.get_blur(2.5).resize(width/2, height/2);
+	CImg<T> g2 = g1.get_resize(g1.width()/2, g1.height()/2);
+	CImg<T> l3 = g2.get_resize(g2.width()/2, g2.height()/2);
+	CImg<T> l2 = g2 - l3.get_resize(g2.width(), g2.height());
+	CImg<T> l1 = g1 - g2.get_resize(g1.width(), g1.height());
+	CImg<T> l0 = img - g1.get_resize(width, height);
+	ret.push_back(l0);
+	ret.push_back(l1);
+	ret.push_back(l2);
+	ret.push_back(l3);
+	return ret;
+}
+
+template<class T>
+CImg<T> ImageStitch<T>::laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
+	double h[], int width, int height, int spectrum, int offsetX, int offsetY) {
+	vector<CImg<T> > ls(4);
+	vector<CImg<T> > ret(4);
+
+	for (int i = 0; i < ls.size(); i++) {
+		ls[i].assign(width/(i+1), height/(i+1), 1, spectrum, 0);
+
+		for (int col = 0; col < ls[i].width(); col++) {
+			for (int row = 0; row < ls[i].height(); row++) {
+				int c = col - offsetX/(i+1), r = row - offsetY/(i+1);
+				double x = c*h[0]+r*h[1]+h[2], y = c*h[3]+r*h[4]+h[5];
+				if (x >= 0 && x < lb[i].width() && y >= 0 && y < lb[i].height()) {
+					double u = x - (int)x, v = y - (int)y;
+					for (int channel = 0; channel < spectrum; channel++) {
+						ls[i](col, row, 0, channel) = 
+						    (int)((1-u)*(1-v)*lb[i](valueWidth(x, lb[i].width()), valueHeight(y, lb[i].height()), 0, channel)
+						    +(1-u)*v*lb[i](valueWidth(x, lb[i].width()), valueHeight(y+1, lb[i].height()), 0, channel)
+						    +u*(1-v)*lb[i](valueWidth(x+1, lb[i].width()), valueHeight(y, lb[i].height()), 0, channel)
+						    +u*v*lb[i](valueWidth(x+1, lb[i].width()), valueHeight(y+1, lb[i].height()), 0, channel));
+					}
+				} else if (c >= 0 && c < la[i].width() && r >= 0 && r < la[i].height()) {
+					for (int channel = 0; channel < la[i].spectrum(); channel++) {
+						ls[i](col, row, 0, channel) = la[i](c, r, 0, channel);
+					}
+				}
+			}
+		}
+	}
+
+    ret[3] = ls[3];
+    for (int i = 2; i >= 0; i--) {
+    	ret[i] = ls[i] + ls[i+1].resize(ls[i].width(), ls[i].height());
+    }
+
+	return ret[0];
 }
 
 template<class T>

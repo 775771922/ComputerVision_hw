@@ -174,12 +174,16 @@ void image_stitch(const CImg<float> &img1, const CImg<float> &img2) {
 }
 
 int main(int argc, char **argv) {
-	if (argc <= 2) {
+	if (argc <= 1) {
 		return 0;
 	}
 	CImg<float> img1(argv[1]);
-	CImg<float> img2(argv[2]);
-	image_stitch(img1, img2);
+	//CImg<float> img2(argv[2]);
+	int width = img1.width(), height = img1.height();
+	CImg<float> ga = img1.get_blur(2.5);
+	ga.resize(width/2, height/2);
+	ga.resize(width, height);
+	ga.save("ga.bmp");
 }
 
 
