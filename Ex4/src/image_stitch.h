@@ -77,9 +77,18 @@ private:
     CImg<T> laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
 	    double h[], int width, int height, int spectrum, int offsetX, int offsetY);
     CImg<T> get_cylindrical_proj(const CImg<T> &img);
+
+
+    CImg<T> image_blend(CImg<T> &img1, CImg<T> &img2);
+    CImg<T> image_stitch_and_blend(CImg<T> &res, int cur, int neighbor,
+	    vector<ImgFeature> &imgFeatures, const vector<CImg<T> > &imgs, double forward_h[],
+	    double backward_h[], bool* isProjected);
+    CImg<T> image_stitch(CImg<T> &res, int cur, int neighbor, vector<ImgFeature> &imgFeatures,
+	    map<int, vector<Pair> > &pointPairs, const vector<CImg<T> > &imgs, bool *isProjected);
 public:
 	ImageStitch(int octaves, int levels, int o_min);
-	CImg<T> image_stitch(const vector<CImg<T> > &imgs);	
+	CImg<T> image_stitch(const vector<CImg<T> > &imgs);
+
 
 };
 
@@ -140,13 +149,9 @@ string name = "A.jpg";
 		vector<int> neighbors = find_nearest_neighbor(cur, isProjected, imgFeatures, pointPairs);
 
 		for (int i = 0; i < neighbors.size(); i++) {
-			isProjected[neighbors[i]] = true;
-		}
-
-
-		for (int i = 0; i < neighbors.size(); i++) {
 			q.push(neighbors[i]);
-			res = image_stitch(res, cur, neighbors[i], imgFeatures, pointPairs, imgs);
+			res = image_stitch(res, cur, neighbors[i], imgFeatures, pointPairs, imgs, isProjected);
+			isProjected[neighbors[i]] = true;
 			
             #ifdef DEBUG
             cout << "neighbor=====>" << neighbors[i] << endl;
@@ -302,7 +307,7 @@ vector<int> ImageStitch<T>::find_nearest_neighbor(int cur, const bool* isProject
 
 template<class T>
 CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int cur, int neighbor, vector<ImgFeature> &imgFeatures,
-	map<int, vector<Pair> > &pointPairs, vector<CImg<T> > &imgs) {
+	map<int, vector<Pair> > &pointPairs, const vector<CImg<T> > &imgs, bool *isProjected) {
 	double forward_h[9], backward_h[9];
 	float epsilon = 6.0;
 	map<int, vector<Pair> >::iterator it = pointPairs.find(neighbor);
@@ -310,14 +315,22 @@ CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int cur, int neighbor, vector
 	ImgFeature lf = imgFeatures[cur];
 	ImgFeature rf = imgFeatures[neighbor];
 	ransac(forward_h, it->second, lf.keypoints, rf.keypoints, epsilon);
-	ransac(backward_h, it->second, rf.keypoints, lf.keypoints, epsilon);
-	res = image_stitch_and_blend(res, cur, neighbor, imgFeatures, imgs, forward_h, backward_h);
+	//ransac(backward_h, it->second, rf.keypoints, lf.keypoints, epsilon);
+	Mat m = Mat(3, 3, CV_64FC1, forward_h);
+    Mat inv = m.inv();
+    for (int i = 0; i < 3; i++) {
+    	for (int j = 0; j < 3; j++) {
+    		backward_h[i*3+j] = inv.at<double>(i,j);
+    	}
+    }
+	return image_stitch_and_blend(res, cur, neighbor, imgFeatures, imgs, forward_h, backward_h, isProjected);
 }
 
 
 template<class T>
 CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighbor,
-	vector<ImgFeature> &imgFeatures, vector<CImg<T> > &imgs) {
+	vector<ImgFeature> &imgFeatures, const vector<CImg<T> > &imgs, double forward_h[],
+	double backward_h[], bool* isProjected) {
 
 	CImg<T> neighborImg(imgs[neighbor]);
 
@@ -326,8 +339,10 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
 	int width = neighborImg.width()-1, height = neighborImg.height()-1;
 	Point2f lt(backward_h[2], backward_h[5]),
             lb(backward_h[1]*height+backward_h[2], backward_h[3]*height+backward_h[5]),
-            rt(h[0]*width+h[1]*0+h[2], h[3]*width+h[4]*0+h[5]),
-            rb(h[0]*width+h[1]*height+h[2], h[3]*width+h[4]*height+h[5]);
+            rt(backward_h[0]*width+backward_h[1]*0+backward_h[2], 
+            	backward_h[3]*width+backward_h[4]*0+backward_h[5]),
+            rb(backward_h[0]*width+backward_h[1]*height+backward_h[2], 
+            	backward_h[3]*width+backward_h[4]*height+backward_h[5]);
 
     int maxX = max(lt.x, max(lb.x, max(rt.x, rb.x)));
     int minX = min(lt.x, min(lb.x, min(rt.x, rb.x)));
@@ -362,8 +377,63 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
     CImg<T> img1(width, height, 1, res.spectrum(), 0);
     CImg<T> img2(width, height, 1, res.spectrum(), 0);
 
-    
+    for (int i = 0; i < img1.width(); i++) {
+    	for (int j = 0; j < img1.height(); j++) {    		
+			int projectI = i - offsetX, projectJ = j - offsetY;
+			if (projectI >= 0 && projectI < res.width() && projectJ >= 0 && projectJ < res.height()) {
+    			for (int channel = 0; channel < res.spectrum(); channel++) {
+    				img1(i, j, 0, channel) = res(projectI, projectJ, 0, channel);
+    			}
+    		}
+    	}
+    }
 
+    // update res's keypoint, note that all images that has projected onto the res image should update
+    for (int i = 0; i < imgFeatures.size(); i++) {
+    	if (isProjected[i] == true) {
+    		for (int j = 0; j < imgFeatures[i].keypoints.size(); j++) {
+    		    imgFeatures[i].keypoints[j].x += offsetX;
+    		    imgFeatures[i].keypoints[j].y += offsetY;
+            }
+    	}
+    }
+
+    for (int i = 0; i < img2.width(); i++) {
+    	for (int j = 0; j < img2.height(); j++) {
+    		int ii = i - offsetX, jj = j - offsetY;
+    		double x = ii*forward_h[0]+jj*forward_h[1]+forward_h[2], y = ii*forward_h[3]+jj*forward_h[4]+forward_h[5];
+			if (x >= 0 && x < neighborImg.width() && y >= 0 && y < neighborImg.height()) {
+				double u = x - (int)x, v = y - (int)y;
+    			for (int channel = 0; channel < res.spectrum(); channel++) {
+                    img2(i, j, 0, channel) = 
+                        (int)((1-u)*(1-v)*neighborImg(valueWidth(x, neighborImg.width()), valueHeight(y, neighborImg.height()), 0, channel)
+                        +(1-u)*v*neighborImg(valueWidth(x, neighborImg.width()), valueHeight(y+1, neighborImg.height()), 0, channel)
+                        +u*(1-v)*neighborImg(valueWidth(x+1, neighborImg.width()), valueHeight(y, neighborImg.height()), 0, channel)
+                        +u*v*neighborImg(valueWidth(x+1, neighborImg.width()), valueHeight(y+1, neighborImg.height()), 0, channel));    				
+    			}
+			}
+    	}
+    }
+
+    // update neighbor image's keypoint.
+    for (int i = 0; i < imgFeatures[neighbor].keypoints.size(); i++) {
+    	double x = imgFeatures[neighbor].keypoints[i].x;
+    	double y = imgFeatures[neighbor].keypoints[i].y;
+    	imgFeatures[neighbor].keypoints[i].x = backward_h[0]*x+backward_h[1]*y+backward_h[2]+offsetX;
+    	imgFeatures[neighbor].keypoints[i].y = backward_h[3]*x+backward_h[4]*y+backward_h[5]+offsetY;
+    }
+
+    (img1, img2).display("test");
+
+    img1.save_jpeg("img1.jpg");
+    img2.save_jpeg("img2.jpg");
+
+    //return image_blend(img1, img2);
+    return img1;
+}
+
+template<class T>
+CImg<T> ImageStitch<T>::image_blend(CImg<T> &img1, CImg<T> &img2) {
 
 }
 
@@ -416,15 +486,6 @@ CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int target, vector<int> &neig
     int maxY = max(lt.y, max(lb.y, max(rt.y, rb.y)));
     int minY = min(lt.y, min(lb.y, min(rt.y, rb.y)));
 
-    #ifdef DEBUG
-    // cout << "width===>" << res.width() << endl
-    //      << "height===>" << res.height() << endl; 
-    // cout << "maxX====>" << maxX << endl
-    //      << "minX====>" << minX << endl
-    //      << "maxY====>" << maxY << endl
-    //      << "minY====>" << minY << endl;
-    #endif
-
     int offsetX, offsetY;
     width = res.width();
     height = res.height();
@@ -449,11 +510,6 @@ CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int target, vector<int> &neig
     } else {
     	
     }
-
-    #ifdef DEBUG
-    cout << "offsetX=====>" << offsetX << endl;
-    cout << "offsetY=====>" << offsetY << endl;
-    #endif
 
     // update the keypoint of neighbor image
     ImgFeature imgFeature = imgFeatures[target];
