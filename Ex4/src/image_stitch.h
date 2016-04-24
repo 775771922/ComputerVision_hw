@@ -66,15 +66,17 @@ private:
     void recomputer_least_squares(vector<VlSiftKeypoint> &keypoints1, 
     	vector<VlSiftKeypoint> &keypoints2, double h[9]);
 	void calc_img_feature(vector<ImgFeature> &imgsFeature, const CImg<T> &img);
-	CImg<T> image_stitch(CImg<T> &res, int neighbor, const vector<CImg<T> > &imgs, 
-		double h[], vector<ImgFeature> &imgFeatures);
-	void image_stitch(CImg<T> &res, int cur, int neighbor, vector<ImgFeature> &imgFeatures, 
-		map<int, vector<Pair> > &pointPairs, const vector<CImg<T> > &imgs);
+    void image_stitch(CImg<T> &res, int cur, int target, vector<int> &neighbors,
+	    vector<ImgFeature> &imgFeatures, map<int, vector<Pair> > &pointPairs, 
+	    const vector<CImg<T> > &imgs, bool* isUsed);
+	CImg<T> image_stitch(CImg<T> &res, int target, vector<int> &neighbors,
+	    const vector<CImg<T> > &imgs, double h[], vector<ImgFeature> &imgFeatures, bool *isUsed);
 	vector<int> find_nearest_neighbor(int cur, const bool* isProjected, 
 		vector<ImgFeature> &imgFeatures, map<int, vector<Pair> > &pointPairs);
     vector<CImg<T> > get_laplacian_pyramin(const CImg<T> &img);
     CImg<T> laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
 	    double h[], int width, int height, int spectrum, int offsetX, int offsetY);
+    CImg<T> get_cylindrical_proj(const CImg<T> &img);
 public:
 	ImageStitch(int octaves, int levels, int o_min);
 	CImg<T> image_stitch(const vector<CImg<T> > &imgs);	
@@ -90,6 +92,18 @@ ImageStitch<T>::ImageStitch(int octaves, int levels, int o_min)
 template<class T>
 CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
 	srand((unsigned)time(0));
+
+	// vector<CImg<T> > imgs(inputImgs.size());
+
+    // for (int i = 0; i < imgs.size(); i++) {
+    // 	imgs[i] = get_cylindrical_proj(inputImgs[i]);
+    // 	imgs[i].display();
+    // 	char name[3];
+    // 	sprintf(name, "%d", i);
+    // 	string s(string(name)+".jpg");
+    // 	imgs[i].save_jpeg(s.c_str());
+    // }
+
 	vector<ImgFeature> imgFeatures;
 	bool* isProjected = new bool[imgs.size()];
 	memset(isProjected, 0, sizeof(bool)*imgs.size());
@@ -102,19 +116,20 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
 	for (int i = 0; i < imgFeatures.size(); i++) {
 		cout << imgFeatures[i].keypoints.size() << endl;
 	}
-	int a;
-	cin >> a;
-	cout << "finish calc_img_feature" << endl;
 	#endif
 
 	queue<int> q;
 	int randomIndex = rand() % imgs.size();
 	q.push(randomIndex);
 	isProjected[randomIndex] = true;
-	CImg<T> res(imgs[randomIndex]);
+
+	//CImg<T> res(imgs[randomIndex]);
 
 
 string name = "A.jpg";
+
+
+    CImg<T> res(imgs[randomIndex]);
 
 	// 要求所有图片都能找到匹配的
 	while (!q.empty()) {
@@ -122,18 +137,7 @@ string name = "A.jpg";
 		q.pop();
 		map<int, vector<Pair> > pointPairs;
 
-        #ifdef DEBUG
-        cout << "current===>" << cur << endl;
-        #endif
-
-
 		vector<int> neighbors = find_nearest_neighbor(cur, isProjected, imgFeatures, pointPairs);
-
-		#ifdef DEBUG
-		cout << "neighbors====>" << neighbors.size() << endl;
-		cout << endl;
-		cout << "start stitch===>" << endl;
-		#endif
 
 		for (int i = 0; i < neighbors.size(); i++) {
 			isProjected[neighbors[i]] = true;
@@ -142,25 +146,47 @@ string name = "A.jpg";
 
 		for (int i = 0; i < neighbors.size(); i++) {
 			q.push(neighbors[i]);
-			image_stitch(res, cur, neighbors[i], imgFeatures, pointPairs, imgs);
-			//isProjected[neighbors[i]] = true;
-
-
+			res = image_stitch(res, cur, neighbors[i], imgFeatures, pointPairs, imgs);
+			
             #ifdef DEBUG
-            
+            cout << "neighbor=====>" << neighbors[i] << endl;
             res.display();
             res.save_jpeg(name.c_str());
             name[0]++;
             #endif
 
 		}
-		imgFeatures[cur].clear();
+		
 	}
 
 	delete [] isProjected;
 	isProjected = NULL;
-
 	return res;
+}
+
+template<class T>
+CImg<T> ImageStitch<T>::get_cylindrical_proj(const CImg<T> &img) {
+	int R = 1000;
+	int width = img.width(), height = img.height(), spectrum = img.spectrum();
+	CImg<T> ret(width, height, 1, spectrum, 0);
+	for (int i = 0; i < img.width(); i++) {
+		for (int j = 0; j < img.height(); j++) {
+			double k = sqrt(R*R+(i-width/2)*(i-width/2)) / R;
+			double x = (i-width/2)*k + width/2;
+			double y = (j-height/2)*k + height/2;
+			if (x >= 0 && x < width && y >= 0 && y < height) {
+				double u = x - (int)x, v = y - (int)y;
+				for (int channel = 0; channel < spectrum; channel++) {
+					ret(i, j, 0, channel) = 
+						(int)((1-u)*(1-v)*img(valueWidth(x, img.width()), valueHeight(y, img.height()), 0, channel)
+						    +(1-u)*v*img(valueWidth(x, img.width()), valueHeight(y+1, img.height()), 0, channel)
+						    +u*(1-v)*img(valueWidth(x+1, img.width()), valueHeight(y, img.height()), 0, channel)
+						    +u*v*img(valueWidth(x+1, img.width()), valueHeight(y+1, img.height()), 0, channel));
+				}
+			}
+		}
+	}
+	return ret;
 }
 
 template<class T>
@@ -212,8 +238,8 @@ template<class T>
 vector<int> ImageStitch<T>::find_nearest_neighbor(int cur, const bool* isProjected, 
 	vector<ImgFeature> &imgFeatures, map<int, vector<Pair> > &pointPairs) {
 	#ifdef DEBUG
-	cout << "find_nearest_neighbor===>" << endl;
-	cout << "cur===>" << cur << endl;
+	// cout << "find_nearest_neighbor===>" << endl;
+	// cout << "cur===>" << cur << endl;
 	#endif
 
 	VlKDForest* forest = vl_kdforest_new(VL_TYPE_FLOAT, dimen, 1, VlDistanceL1);
@@ -241,7 +267,7 @@ vector<int> ImageStitch<T>::find_nearest_neighbor(int cur, const bool* isProject
 		}
 
         #ifdef DEBUG
-        cout << "i====>" << i << endl;
+        //cout << "i====>" << i << endl;
         #endif
 
 		if (i != cur && isProjected[i] != true) {
@@ -275,19 +301,86 @@ vector<int> ImageStitch<T>::find_nearest_neighbor(int cur, const bool* isProject
 }
 
 template<class T>
-void ImageStitch<T>::image_stitch(CImg<T> &res, int cur, int neighbor, 
-	vector<ImgFeature> &imgFeatures, map<int, vector<Pair> > &pointPairs,
-	const vector<CImg<T> > &imgs) {
-	double h[9];
+CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int cur, int neighbor, vector<ImgFeature> &imgFeatures,
+	map<int, vector<Pair> > &pointPairs, vector<CImg<T> > &imgs) {
+	double forward_h[9], backward_h[9];
 	float epsilon = 6.0;
 	map<int, vector<Pair> >::iterator it = pointPairs.find(neighbor);
+
+	ImgFeature lf = imgFeatures[cur];
+	ImgFeature rf = imgFeatures[neighbor];
+	ransac(forward_h, it->second, lf.keypoints, rf.keypoints, epsilon);
+	ransac(backward_h, it->second, rf.keypoints, lf.keypoints, epsilon);
+	res = image_stitch_and_blend(res, cur, neighbor, imgFeatures, imgs, forward_h, backward_h);
+}
+
+
+template<class T>
+CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighbor,
+	vector<ImgFeature> &imgFeatures, vector<CImg<T> > &imgs) {
+
+	CImg<T> neighborImg(imgs[neighbor]);
+
+    assert(res.spectrum() == neighborImg.spectrum());
+
+	int width = neighborImg.width()-1, height = neighborImg.height()-1;
+	Point2f lt(backward_h[2], backward_h[5]),
+            lb(backward_h[1]*height+backward_h[2], backward_h[3]*height+backward_h[5]),
+            rt(h[0]*width+h[1]*0+h[2], h[3]*width+h[4]*0+h[5]),
+            rb(h[0]*width+h[1]*height+h[2], h[3]*width+h[4]*height+h[5]);
+
+    int maxX = max(lt.x, max(lb.x, max(rt.x, rb.x)));
+    int minX = min(lt.x, min(lb.x, min(rt.x, rb.x)));
+    int maxY = max(lt.y, max(lb.y, max(rt.y, rb.y)));
+    int minY = min(lt.y, min(lb.y, min(rt.y, rb.y)));
+
+    int offsetX, offsetY;
+    width = res.width();
+    height = res.height();
+    // neighborImg projects to the left of res
+    if (minX <= 0) {
+    	offsetX = 0 - minX;
+    	width = res.width() - minX;
+    } else if (maxX >= res.width()) {  // neighborImg projects to the right of res
+    	offsetX = 0;
+    	width = maxX;
+    } else {
+    	
+    }
+
+    // neighborImg projects to the top of res
+    if (minY <= 0) {
+    	offsetY = 0 - minY;
+    	height = res.height() - minY;
+    } else if (maxY >= res.height()) {  // neighborImg projects to the bottom of res
+    	offsetY = 0;
+    	height = maxY;
+    } else {
+    	
+    }
+
+    CImg<T> img1(width, height, 1, res.spectrum(), 0);
+    CImg<T> img2(width, height, 1, res.spectrum(), 0);
+
+    
+
+
+}
+
+template<class T>
+void ImageStitch<T>::image_stitch(CImg<T> &res, int cur, int target, vector<int> &neighbors,
+	vector<ImgFeature> &imgFeatures, map<int, vector<Pair> > &pointPairs, 
+	const vector<CImg<T> > &imgs, bool* isUsed) {
+	double h[9];
+	float epsilon = 6.0;
+	map<int, vector<Pair> >::iterator it = pointPairs.find(neighbors[target]);
 
 	assert(it != pointPairs.end());
 
 	ImgFeature lf = imgFeatures[cur];
-	ImgFeature rf = imgFeatures[neighbor];
+	ImgFeature rf = imgFeatures[neighbors[target]];
 	ransac(h, it->second, lf.keypoints, rf.keypoints, epsilon);
-	res = image_stitch(res, neighbor, imgs, h, imgFeatures);
+	res = image_stitch(res, neighbors[target], neighbors, imgs, h, imgFeatures, isUsed);
 }
 
 
@@ -298,12 +391,12 @@ void ImageStitch<T>::image_stitch(CImg<T> &res, int cur, int neighbor,
 * since their positions have been projected onto the new image.
 */
 template<class T>
-CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int neighbor, 
-	const vector<CImg<T> > &imgs, double h[], vector<ImgFeature> &imgFeatures) {
+CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int target, vector<int> &neighbors,
+	const vector<CImg<T> > &imgs, double h[], vector<ImgFeature> &imgFeatures, bool* isUsed) {
 
 	CImg<T> ret;
 
-	CImg<T> projImg(imgs[neighbor]);
+	CImg<T> projImg(imgs[target]);
     assert(res.spectrum() == projImg.spectrum());
 
     Mat m = Mat(3, 3, CV_64FC1, h);
@@ -324,12 +417,12 @@ CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int neighbor,
     int minY = min(lt.y, min(lb.y, min(rt.y, rb.y)));
 
     #ifdef DEBUG
-    cout << "width===>" << res.width() << endl
-         << "height===>" << res.height() << endl; 
-    cout << "maxX====>" << maxX << endl
-         << "minX====>" << minX << endl
-         << "maxY====>" << maxY << endl
-         << "minY====>" << minY << endl;
+    // cout << "width===>" << res.width() << endl
+    //      << "height===>" << res.height() << endl; 
+    // cout << "maxX====>" << maxX << endl
+    //      << "minX====>" << minX << endl
+    //      << "maxY====>" << maxY << endl
+    //      << "minY====>" << minY << endl;
     #endif
 
     int offsetX, offsetY;
@@ -357,45 +450,60 @@ CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int neighbor,
     	
     }
 
+    #ifdef DEBUG
+    cout << "offsetX=====>" << offsetX << endl;
+    cout << "offsetY=====>" << offsetY << endl;
+    #endif
+
     // update the keypoint of neighbor image
-    ImgFeature imgFeature = imgFeatures[neighbor];
-    for (int i = 0; i < imgFeatures[neighbor].keypoints.size(); i++) {
-    	double x = imgFeatures[neighbor].keypoints[i].x;
-    	double y = imgFeatures[neighbor].keypoints[i].y;
-    	imgFeatures[neighbor].keypoints[i].x = inv.at<double>(0,0)*x+inv.at<double>(0,1)*y+inv.at<double>(0,2)+offsetX;
-    	imgFeatures[neighbor].keypoints[i].y = inv.at<double>(1,0)*x+inv.at<double>(1,1)*y+inv.at<double>(1,2)+offsetY;
+    ImgFeature imgFeature = imgFeatures[target];
+    for (int i = 0; i < imgFeatures[target].keypoints.size(); i++) {
+    	double x = imgFeatures[target].keypoints[i].x;
+    	double y = imgFeatures[target].keypoints[i].y;
+    	imgFeatures[target].keypoints[i].x = inv.at<double>(0,0)*x+inv.at<double>(0,1)*y+inv.at<double>(0,2)+offsetX;
+    	imgFeatures[target].keypoints[i].y = inv.at<double>(1,0)*x+inv.at<double>(1,1)*y+inv.at<double>(1,2)+offsetY;
+    }
+    for (int i = 0; i < neighbors.size(); i++) {
+    	// isUsed[neighbors[i]]==true表示已经拼接上去，此时才需要更新坐标
+    	if (neighbors[i] != target && isUsed[neighbors[i]] == true) {
+    		for (int j = 0; j < imgFeatures[neighbors[i]].keypoints.size(); j++) {
+    			imgFeatures[neighbors[i]].keypoints[j].x += offsetX;
+    			imgFeatures[neighbors[i]].keypoints[j].y += offsetY;
+    		}
+    	}
     }
 
-    CImg<T> subA(res.width(), res.height(), res.depth(), res.spectrum(), 0);
-    CImg<T> subB(projImg.width(), projImg.height(), projImg.depth(), projImg.spectrum(), 0);
-    
+    // CImg<T> subA(res.width(), res.height(), res.depth(), res.spectrum(), 0);
+    // CImg<T> subB(projImg.width(), projImg.height(), projImg.depth(), projImg.spectrum(), 0);
+    // get_overlap(subA, res, m, projImg);
+    // get_overlap(subB, projImg, inv, res);
 
-    vector<CImg<T> > lA = get_laplacian_pyramin(res);
-    vector<CImg<T> > lB = get_laplacian_pyramin(projImg);
-    ret = laplacian_combine(lA, lB, h, width, height, res.spectrum(), offsetX, offsetY);
+    // vector<CImg<T> > lA = get_laplacian_pyramin(subA);
+    // vector<CImg<T> > lB = get_laplacian_pyramin(subB);
+    // ret = laplacian_combine(lA, lB, h, width, height, res.spectrum(), offsetX, offsetY);
 
- //    ret.assign(width, height, 1, res.spectrum(), 0);
+    ret.assign(width, height, 1, res.spectrum(), 0);
 
-	// for (int i = 0; i < ret.width(); i++) {
-	// 	for (int j = 0; j < ret.height(); j++) {
-	// 		int ii = i - offsetX, jj = j - offsetY;
-	// 		double x = ii*h[0]+jj*h[1]+h[2], y = ii*h[3]+jj*h[4]+h[5];
-	// 		if (x >= 0 && x < projImg.width() && y >= 0 && y < projImg.height()) {
-	// 			double u = x - (int)x, v = y - (int)y;
- //    			for (int channel = 0; channel < res.spectrum(); channel++) {
- //                    ret(i, j, 0, channel) = 
- //                        (int)((1-u)*(1-v)*projImg(valueWidth(x, projImg.width()), valueHeight(y, projImg.height()), 0, channel)
- //                        +(1-u)*v*projImg(valueWidth(x, projImg.width()), valueHeight(y+1, projImg.height()), 0, channel)
- //                        +u*(1-v)*projImg(valueWidth(x+1, projImg.width()), valueHeight(y, projImg.height()), 0, channel)
- //                        +u*v*projImg(valueWidth(x+1, projImg.width()), valueHeight(y+1, projImg.height()), 0, channel));    				
- //    			}
-	// 		} else if (ii >= 0 && ii < res.width() && jj >= 0 && jj < res.height()) {
-	// 		    for (int channel = 0; channel < res.spectrum(); channel++) {
-	// 			    ret(i, j, 0, channel) = res(ii, jj, 0, channel);    				
-	// 	        }
-	// 	    }
- //     	}
- //    }
+	for (int i = 0; i < ret.width(); i++) {
+		for (int j = 0; j < ret.height(); j++) {
+			int ii = i - offsetX, jj = j - offsetY;
+			double x = ii*h[0]+jj*h[1]+h[2], y = ii*h[3]+jj*h[4]+h[5];
+			if (x >= 0 && x < projImg.width() && y >= 0 && y < projImg.height()) {
+				double u = x - (int)x, v = y - (int)y;
+    			for (int channel = 0; channel < res.spectrum(); channel++) {
+                    ret(i, j, 0, channel) = 
+                        (int)((1-u)*(1-v)*projImg(valueWidth(x, projImg.width()), valueHeight(y, projImg.height()), 0, channel)
+                        +(1-u)*v*projImg(valueWidth(x, projImg.width()), valueHeight(y+1, projImg.height()), 0, channel)
+                        +u*(1-v)*projImg(valueWidth(x+1, projImg.width()), valueHeight(y, projImg.height()), 0, channel)
+                        +u*v*projImg(valueWidth(x+1, projImg.width()), valueHeight(y+1, projImg.height()), 0, channel));    				
+    			}
+			} else if (ii >= 0 && ii < res.width() && jj >= 0 && jj < res.height()) {
+			    for (int channel = 0; channel < res.spectrum(); channel++) {
+				    ret(i, j, 0, channel) = res(ii, jj, 0, channel);    				
+		        }
+		    }
+     	}
+    }
    
 	return ret;
 }

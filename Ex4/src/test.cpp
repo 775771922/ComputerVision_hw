@@ -39,6 +39,7 @@ int main(int argc, char** argv) {
 	ImageStitch<unsigned char> imageStitch(noctaves, nlevels, o_min);
 	vector<CImg<unsigned char> > imgs;
 	for (int i = 0; i < files.size(); i++) {
+		cout << "file===>" << i << " " << files[i] << endl;
 		imgs.push_back(CImg<unsigned char>(files[i].c_str()));
 		//imgs[i].display();
 	}
