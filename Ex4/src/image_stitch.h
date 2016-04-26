@@ -137,8 +137,6 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
 	q.push(randomIndex);
 	isProjected[randomIndex] = true;
 
-	//CImg<T> res(imgs[randomIndex]);
-
     string name = "A.jpg";
 
 
@@ -151,6 +149,10 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
 		map<int, vector<Pair> > pointPairs;
 
 		vector<int> neighbors = find_nearest_neighbor(cur, isProjected, imgFeatures, pointPairs);
+
+		#ifdef DEBUG
+		cout << "neighbors size===>" << neighbors.size() << endl;
+		#endif
 
 		for (int i = 0; i < neighbors.size(); i++) {
 			q.push(neighbors[i]);
@@ -201,8 +203,23 @@ CImg<T> ImageStitch<T>::get_cylindrical_proj(const CImg<T> &img) {
 template<class T>
 void ImageStitch<T>::calc_img_feature(vector<ImgFeature> &imgsFeature, const CImg<T> &img) {
 	CImg<T> tempImg(img);
+
 	if (tempImg.spectrum() != 1) {
 		tempImg = get_gray_image(img);
+	}
+
+	float scale;
+	bool isScaled = false;
+	if (tempImg.width() > 500 || tempImg.height() > 500) {
+		isScaled = true;
+		if (tempImg.width() > tempImg.height()) {
+			scale = 500.0 / tempImg.width();
+			tempImg.resize((tempImg.width()*scale), (int)(tempImg.height()*scale), 1, 1, 3);
+		} else {
+			scale = (float)500 / tempImg.height();
+			tempImg.resize((int)(tempImg.width()*scale), (int)(tempImg.height()*scale), 1, 1, 3);
+		}
+
 	}
 
 	ImgFeature feature;
@@ -219,7 +236,16 @@ void ImageStitch<T>::calc_img_feature(vector<ImgFeature> &imgsFeature, const CIm
 			VlSiftKeypoint *keyPoint = siftFilt->keys;
 			for (int i = 0; i < siftFilt->nkeys; i++) {
 				VlSiftKeypoint tempKeyPoint = *keyPoint;
-				feature.keypoints.push_back(tempKeyPoint);
+
+				VlSiftKeypoint t = tempKeyPoint;
+
+				//restore to original scale if necessary
+				if (isScaled) {
+					t.x = (int)(tempKeyPoint.x / scale);
+					t.y = (int)(tempKeyPoint.y / scale);
+				}
+
+				feature.keypoints.push_back(t);
 				keyPoint++;
 				double angles[4];
 				vl_sift_calc_keypoint_orientations(siftFilt, angles, &tempKeyPoint);
@@ -278,7 +304,7 @@ vector<int> ImageStitch<T>::find_nearest_neighbor(int cur, const bool* isProject
 			descr = imgFeatures[i].descr;
 			for (int j = 0; j < descr.size(); j++) {
 				int nvisited = vl_kdforestsearcher_query(searcher, neighbors, 2, descr[j]);
-				if (neighbors[0].distance < neighbors[1].distance * 0.4) {
+				if (neighbors[0].distance < neighbors[1].distance * 0.6) {
 					// neighbors[0].index表示kd树中最佳匹配点的位置
 					pairs.push_back(Pair(neighbors[0].index, j));
 				}
@@ -322,7 +348,7 @@ CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int cur, int neighbor, vector
 template<class T>
 CImg<T> image_combine(CImg<T> &leftImg, CImg<T> &rightImg, bool leftToRight) {
 	CImg<T> ret(leftImg.width(), leftImg.height(), leftImg.depth(), leftImg.spectrum(), 0);
-	if (leftToRight) {
+	if (true) {
 		for (int i = 0; i < ret.width(); i++) {
 			for (int j = 0; j < ret.height(); j++) {
 				for (int channel = 0; channel < 3; channel++) {
@@ -406,9 +432,9 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
     			double x = Homography::calc_X(projectI, projectJ, forward_h),
     		          y = Homography::calc_Y(projectI, projectJ, forward_h);
 
-	    		if (x >= 0 && x < neighborImg.width() && y >= 0 && y < neighborImg.height()) {
-	    			R(i, j, 0, 0) = 1.0;
-	    		}
+	    		// if (x >= 0 && x < neighborImg.width() && y >= 0 && y < neighborImg.height()) {
+	    		// 	R(i, j, 0, 0) = 1.0;
+	    		// }
     		}
     	}
     }
@@ -451,8 +477,8 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
 
     (img1, img2).display("test");
 
-    img1.save_jpeg("img1.jpg");
-    img2.save_jpeg("img2.jpg");
+    // img1.save_jpeg("img1.jpg");
+    // img2.save_jpeg("img2.jpg");
 
 
      if (img1.width() > img1.height()) {  // stitch images from left to right

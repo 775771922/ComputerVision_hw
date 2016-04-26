@@ -15,7 +15,7 @@ endif
 
 all: test
 
-test: test.cpp image_stitch.h homography.h
+test: test.cpp image_stitch.h homography.h ScaleOP.h
 	$(CC) $(GG) $(CV) $(VL) -o test test.cpp
 
 # image_stitch: image_stitch.cpp
