@@ -61,6 +61,9 @@ private:
 	CImg<T> get_gray_image(const CImg<T> &srcImg);
 	void ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
 		vector<VlSiftKeypoint>& keypoints2, float epsilon);
+	void ransac(double forward[9], double backward[9], vector<Pair>& pairs, 
+	    vector<VlSiftKeypoint> &keypoints1, vector<VlSiftKeypoint>& keypoints2, float epsilon);
+
 	vector<Pair> randomly_select(vector<Pair> &pairs);
 	void calc_homography(vector<Pair> &randomPairs, vector<VlSiftKeypoint> &keypoints1,
         vector<VlSiftKeypoint> &keypoints2, double h[9]);
@@ -92,11 +95,6 @@ public:
 	ImageStitch(int octaves, int levels, int o_min);
 	CImg<T> image_stitch(const vector<CImg<T> > &imgs);
 
-
-    #ifdef DEBUG
-    vector<CImg<T> > hh;
-    #endif
-
 };
 
 
@@ -108,11 +106,6 @@ ImageStitch<T>::ImageStitch(int octaves, int levels, int o_min)
 template<class T>
 CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
 	srand((unsigned)time(0));
-
-    
-    #ifdef DEBUG
-    hh = imgs;
-    #endif
 
 	// vector<CImg<T> > imgs(inputImgs.size());
 
@@ -146,8 +139,7 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
 
 	//CImg<T> res(imgs[randomIndex]);
 
-
-string name = "A.jpg";
+    string name = "A.jpg";
 
 
     CImg<T> res(imgs[randomIndex]);
@@ -318,28 +310,40 @@ CImg<T> ImageStitch<T>::image_stitch(CImg<T> &res, int cur, int neighbor, vector
 
 	ImgFeature lf = imgFeatures[cur];
 	ImgFeature rf = imgFeatures[neighbor];
-	ransac(forward_h, it->second, lf.keypoints, rf.keypoints, epsilon);
-
-	vector<Pair> tempPairs;
-	vector<Pair> origin = it->second;
-	for (int i = 0; i < origin.size(); i++) {
-		tempPairs.push_back(Pair(origin[i].k2, origin[i].k1));
-	}
-	ransac(backward_h, tempPairs, rf.keypoints, lf.keypoints, epsilon);
-	// Mat m = Mat(3, 3, CV_64FC1, forward_h);
-
- //    Mat inv = m.inv();
- //    for (int i = 0; i < 3; i++) {
- //    	for (int j = 0; j < 3; j++) {
- //    		backward_h[i*3+j] = inv.at<double>(i,j);
- //    	}
- //    }
+	ransac(forward_h, backward_h, it->second, lf.keypoints, rf.keypoints, epsilon);
 
     #ifdef DEBUG
     cout << "start stitch====>\n";
     #endif
 
 	return image_stitch_and_blend(res, cur, neighbor, imgFeatures, imgs, forward_h, backward_h, isProjected);
+}
+
+template<class T>
+CImg<T> image_combine(CImg<T> &leftImg, CImg<T> &rightImg, bool leftToRight) {
+	CImg<T> ret(leftImg.width(), leftImg.height(), leftImg.depth(), leftImg.spectrum(), 0);
+	if (leftToRight) {
+		for (int i = 0; i < ret.width(); i++) {
+			for (int j = 0; j < ret.height(); j++) {
+				for (int channel = 0; channel < 3; channel++) {
+					ret(i, j, 0, channel) = leftImg(i, j, 0, channel);
+
+				}
+			}
+		}
+		for (int i = 0; i < ret.width(); i++) {
+			for (int j = 0; j < ret.height(); j++) {
+				for (int channel = 0; channel < 3; channel++) {
+					if (ret(i, j, 0, channel) == 0) {
+						ret(i, j, 0, channel) = rightImg(i, j, 0, channel);
+					}
+				}
+			}
+		}
+	} else {
+
+	}
+	return ret;
 }
 
 template<class T>
@@ -365,15 +369,6 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
     int maxY = max(lt.y, max(lb.y, max(rt.y, rb.y)));
     int minY = min(lt.y, min(lb.y, min(rt.y, rb.y)));
 
-    #ifdef DEBUG
-    cout << "width===>" << res.width() << endl
-         << "height===>" << res.height() << endl; 
-    cout << "maxX====>" << maxX << endl
-         << "minX====>" << minX << endl
-         << "maxY====>" << maxY << endl
-         << "minY====>" << minY << endl;
-    #endif
-
     int offsetX = 0, offsetY = 0;
     width = res.width();
     height = res.height();
@@ -383,7 +378,6 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
     	width = res.width() - minX;
     }  
     if (maxX >= res.width()) {  // neighborImg projects to the right of res
-    	//offsetX = 0;
     	width = maxX + offsetX;
     }
 
@@ -393,16 +387,8 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
     	height = res.height() - minY;
     } 
     if (maxY >= res.height()) {  // neighborImg projects to the bottom of res
-    	//offsetY = 0;
     	height = maxY + offsetY;
     }
-
-    #ifdef DEBUG
-    cout << "offsetX====>" << offsetX << endl;
-    cout << "offsetY====>" << offsetY << endl;
-    cout << "width====>" << width << endl;
-    cout << "height===>" << height << endl;
-    #endif
 
     CImg<T> img1(width, height, 1, res.spectrum(), 0);
     CImg<T> img2(width, height, 1, res.spectrum(), 0);
@@ -468,6 +454,7 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
     img1.save_jpeg("img1.jpg");
     img2.save_jpeg("img2.jpg");
 
+
      if (img1.width() > img1.height()) {  // stitch images from left to right
      	if (offsetX == 0) {
      		return image_blend(img1, img2, R, true);
@@ -484,33 +471,6 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
      	assert(false);
      }
 
-}
-
-template<class T>
-CImg<T> image_combine(CImg<T> &leftImg, CImg<T> &rightImg, bool leftToRight) {
-	CImg<T> ret(leftImg.width(), leftImg.height(), leftImg.depth(), leftImg.spectrum(), 0);
-	if (leftToRight) {
-		for (int i = 0; i < ret.width(); i++) {
-			for (int j = 0; j < ret.height(); j++) {
-				for (int channel = 0; channel < 3; channel++) {
-					ret(i, j, 0, channel) = leftImg(i, j, 0, channel);
-
-				}
-			}
-		}
-		for (int i = 0; i < ret.width(); i++) {
-			for (int j = 0; j < ret.height(); j++) {
-				for (int channel = 0; channel < 3; channel++) {
-					if (ret(i, j, 0, channel) == 0) {
-						ret(i, j, 0, channel) = rightImg(i, j, 0, channel);
-					}
-				}
-			}
-		}
-	} else {
-
-	}
-	return ret;
 }
 
 template<class T>
@@ -574,7 +534,7 @@ template<class T>
 vector<CImg<float> > ImageStitch<T>::get_gaussian_pyramin(const CImg<float> &R) {
 	vector<CImg<float> > ret;
 	int width = R.width(), height = R.height();
-	CImg<float> g0 = R.get_blur(2);
+	CImg<float> g0 = R.get_blur(0.5);
 	CImg<float> g1 = g0.get_resize(g0.width()/2, g0.height()/2);
 	CImg<float> g2 = g1.get_resize(g1.width()/2, g1.height()/2);
 	CImg<float> g3 = g2.get_resize(g2.width()/2, g2.height()/2);
@@ -589,7 +549,7 @@ template<class T>
 vector<CImg<T> > ImageStitch<T>::get_laplacian_pyramin(const CImg<T> &img) {
 	vector<CImg<T> > ret;
 	int width = img.width(), height = img.height();
-	CImg<T> g0 = img.get_blur(2);
+	CImg<T> g0 = img.get_blur(0.5);
 	CImg<T> g1 = g0.get_resize(g0.width()/2, g0.height()/2);
 	CImg<T> g2 = g1.get_resize(g1.width()/2, g1.height()/2);
 	CImg<T> g3 = g2.get_resize(g2.width()/2, g2.height()/2);
@@ -743,6 +703,44 @@ void draw_point(CImg<T> &img, int x, int y, double circle) {
 }
 
 template<class T>
+void ImageStitch<T>::ransac(double forward[9], double backward[9], vector<Pair>& pairs, 
+	vector<VlSiftKeypoint> &keypoints1, vector<VlSiftKeypoint>& keypoints2, float epsilon) {
+	int loop_times = calc_iterations(0.3, 0.99, 4);
+	#ifdef DEBUG
+	cout << "loop_times===>" << loop_times << endl;
+	#endif
+
+	int max_inliers = 0;
+	double tempFH[9], tempBH[9];
+
+	while (loop_times--) {
+		vector<Pair> randomPairs = randomly_select(pairs);
+
+		calc_homography(randomPairs, keypoints1, keypoints2, tempFH);
+
+		vector<Pair> tempPairs;
+		for (int i = 0; i < randomPairs.size(); i++) {
+			tempPairs.push_back(Pair(randomPairs[i].k2, randomPairs[i].k1));
+		}
+		calc_homography(tempPairs, keypoints2, keypoints1, tempBH);
+
+		int inliers = calc_inliers(pairs, keypoints1, keypoints2, tempFH, epsilon);
+
+		if (inliers > max_inliers) {
+
+			for (int i = 0; i < 9; i++) {
+				forward[i] = tempFH[i];
+			}
+			max_inliers = inliers;
+
+			for (int i = 0; i < 9; i++) {
+				backward[i] = tempBH[i];
+			}
+		}
+	}
+}
+
+template<class T>
 void ImageStitch<T>::ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
 	vector<VlSiftKeypoint>& keypoints2, float epsilon) {
 	int loop_times = calc_iterations(0.3, 0.99, 4);
@@ -757,14 +755,8 @@ void ImageStitch<T>::ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypo
 		vector<Pair> randomPairs = randomly_select(pairs);
 		calc_homography(randomPairs, keypoints1, keypoints2, tempH);
 		int inliers = calc_inliers(pairs, keypoints1, keypoints2, tempH, epsilon);
-		if (inliers > max_inliers) {
 
-			#ifdef DEBUG
-			// for (int i = 0; i < randomPairs.size(); i++) {
-			// 	Pair p = randomPairs[i];
-			// 	draw_point()
-			// }
-			#endif
+		if (inliers > max_inliers) {
 
 			for (int i = 0; i < 9; i++) {
 				h[i] = tempH[i];
@@ -882,7 +874,6 @@ CImg<T> ImageStitch<T>::get_gray_image(const CImg<T> &srcImg) {
     #endif
     return grayImg;
 }
-
 
 
 #endif
