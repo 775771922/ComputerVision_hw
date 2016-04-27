@@ -95,6 +95,9 @@ public:
 	ImageStitch(int octaves, int levels, int o_min);
 	CImg<T> image_stitch(const vector<CImg<T> > &imgs);
 
+    #ifdef DEBUG
+    vector<CImg<T> > hh;
+    #endif
 };
 
 
@@ -104,19 +107,23 @@ ImageStitch<T>::ImageStitch(int octaves, int levels, int o_min)
 }
 
 template<class T>
-CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
+CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &inputImgs) {
 	srand((unsigned)time(0));
 
-	// vector<CImg<T> > imgs(inputImgs.size());
+	vector<CImg<T> > imgs(inputImgs);
 
-    // for (int i = 0; i < imgs.size(); i++) {
-    // 	imgs[i] = get_cylindrical_proj(inputImgs[i]);
-    // 	imgs[i].display();
-    // 	char name[3];
-    // 	sprintf(name, "%d", i);
-    // 	string s(string(name)+".jpg");
-    // 	imgs[i].save_jpeg(s.c_str());
-    // }
+    for (int i = 0; i < imgs.size(); i++) {
+    	imgs[i] = get_cylindrical_proj(inputImgs[i]);
+    	imgs[i].display();
+    	char name[3];
+    	sprintf(name, "%d", i);
+    	string s(string(name)+".jpg");
+    	imgs[i].save_jpeg(s.c_str());
+    }
+
+	#ifdef DEBUG
+	hh = imgs;
+	#endif
 
 	vector<ImgFeature> imgFeatures;
 	bool* isProjected = new bool[imgs.size()];
@@ -177,19 +184,32 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &imgs) {
 
 template<class T>
 CImg<T> ImageStitch<T>::get_cylindrical_proj(const CImg<T> &img) {
-	int R = 1000;
+	double alpha = 0.4;
 	int width = img.width(), height = img.height(), spectrum = img.spectrum();
+	double R = 1200.0;
+	cin >> R;
+    //double R = width / (2*tan(alpha/2));
+    cout << "R====>" << R << endl;
+ 
+    // Point2f lt((0-width/2)*(sqrt(R*R+(0-width/2)*(0-width/2)) / R) + width/2,
+    //            (0-height/2)*(sqrt(R*R+(0-width/2)*(0-width/2)) / R) + height/2),
+    //         rb((width-1-width/2)*(sqrt(R*R+(width-1-width/2)*(width-1-width/2)) / R) + width/2, 
+    //            (height-1-height/2)*(sqrt(R*R+(width-1-width/2)*(width-1-width/2)) / R) + height/2);
+
+    //int offsetX = lt.x, offsetY = rb.y;
+	
 	CImg<T> ret(width, height, 1, spectrum, 0);
-	for (int i = 0; i < img.width(); i++) {
-		for (int j = 0; j < img.height(); j++) {
-			double k = sqrt(R*R+(i-width/2)*(i-width/2)) / R;
-			double x = (i-width/2)*k + width/2;
-			double y = (j-height/2)*k + height/2;
+	for (int i = 0; i < width; i++) {
+		for (int j = 0; j < height; j++) {
+			double k = R / sqrt(R*R+(i-width/2)*(i-width/2));
+			double x = (i-width/2)/k + width/2;
+			double y = (j-height/2)/k + height/2;
+
 			if (x >= 0 && x < width && y >= 0 && y < height) {
 				double u = x - (int)x, v = y - (int)y;
 				for (int channel = 0; channel < spectrum; channel++) {
 					ret(i, j, 0, channel) = 
-						(int)((1-u)*(1-v)*img(valueWidth(x, img.width()), valueHeight(y, img.height()), 0, channel)
+						(T)((1-u)*(1-v)*img(valueWidth(x, img.width()), valueHeight(y, img.height()), 0, channel)
 						    +(1-u)*v*img(valueWidth(x, img.width()), valueHeight(y+1, img.height()), 0, channel)
 						    +u*(1-v)*img(valueWidth(x+1, img.width()), valueHeight(y, img.height()), 0, channel)
 						    +u*v*img(valueWidth(x+1, img.width()), valueHeight(y+1, img.height()), 0, channel));
@@ -304,7 +324,7 @@ vector<int> ImageStitch<T>::find_nearest_neighbor(int cur, const bool* isProject
 			descr = imgFeatures[i].descr;
 			for (int j = 0; j < descr.size(); j++) {
 				int nvisited = vl_kdforestsearcher_query(searcher, neighbors, 2, descr[j]);
-				if (neighbors[0].distance < neighbors[1].distance * 0.6) {
+				if (neighbors[0].distance < neighbors[1].distance * 0.5) {
 					// neighbors[0].index表示kd树中最佳匹配点的位置
 					pairs.push_back(Pair(neighbors[0].index, j));
 				}
@@ -457,7 +477,7 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
 				double u = x - (int)x, v = y - (int)y;
     			for (int channel = 0; channel < res.spectrum(); channel++) {
                     img2(i, j, 0, channel) = 
-                        (int)((1-u)*(1-v)*neighborImg(valueWidth(x, neighborImg.width()), valueHeight(y, neighborImg.height()), 0, channel)
+                        (T)((1-u)*(1-v)*neighborImg(valueWidth(x, neighborImg.width()), valueHeight(y, neighborImg.height()), 0, channel)
                         +(1-u)*v*neighborImg(valueWidth(x, neighborImg.width()), valueHeight(y+1, neighborImg.height()), 0, channel)
                         +u*(1-v)*neighborImg(valueWidth(x+1, neighborImg.width()), valueHeight(y, neighborImg.height()), 0, channel)
                         +u*v*neighborImg(valueWidth(x+1, neighborImg.width()), valueHeight(y+1, neighborImg.height()), 0, channel));    				
@@ -475,10 +495,10 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
 
     }
 
-    (img1, img2).display("test");
+    (img1, img2).display("hhhhhhhhhhhhhhhh!");
 
-    // img1.save_jpeg("img1.jpg");
-    // img2.save_jpeg("img2.jpg");
+    img1.save_jpeg("img1.jpg");
+    img2.save_jpeg("img2.jpg");
 
 
      if (img1.width() > img1.height()) {  // stitch images from left to right
@@ -721,9 +741,11 @@ void draw_point(CImg<T> &img, int x, int y, double circle) {
     int height = img.height();
     for (int i = 0; i < width; i++) {
         for (int j = 0; j < height; j++) {
-            if (sqrt((i-x)*(i-x)+(j-y)*(j-y)) < circle) {
-                img(i, j, 0, 0) = 0xff;
-            }
+        	for (int channel = 0; channel < img.spectrum(); channel++) {
+        		if (sqrt((i-x)*(i-x)+(j-y)*(j-y)) < circle) {
+                    img(i, j, 0, channel) = 0;
+                }
+        	}
         }
     }
 }
@@ -754,6 +776,18 @@ void ImageStitch<T>::ransac(double forward[9], double backward[9], vector<Pair>&
 
 		if (inliers > max_inliers) {
 
+			#ifdef DEBUG
+			cout << "inliers=====>" << inliers << endl;
+			// CImg<T> a(hh[0]), b(hh[1]);
+			// for (int i = 0; i < randomPairs.size(); i++) {
+			// 	cout << "(" << keypoints1[randomPairs[i].k1].x << "," <<  keypoints1[randomPairs[i].k1].y << ")\n";
+			// 	cout << "(" << keypoints2[randomPairs[i].k2].x << "," <<  keypoints2[randomPairs[i].k2].y << ")\n";
+			// 	draw_point(a, keypoints1[randomPairs[i].k1].x, keypoints1[randomPairs[i].k1].y, 5);
+			// 	draw_point(b, keypoints2[randomPairs[i].k2].x, keypoints2[randomPairs[i].k2].y, 5);
+			// 	(a, b).display("test");
+			// }
+			#endif
+
 			for (int i = 0; i < 9; i++) {
 				forward[i] = tempFH[i];
 			}
@@ -764,36 +798,6 @@ void ImageStitch<T>::ransac(double forward[9], double backward[9], vector<Pair>&
 			}
 		}
 	}
-}
-
-template<class T>
-void ImageStitch<T>::ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
-	vector<VlSiftKeypoint>& keypoints2, float epsilon) {
-	int loop_times = calc_iterations(0.3, 0.99, 4);
-	#ifdef DEBUG
-	cout << "loop_times===>" << loop_times << endl;
-	#endif
-
-	int max_inliers = 0;
-	double tempH[9];
-
-	while (loop_times--) {
-		vector<Pair> randomPairs = randomly_select(pairs);
-		calc_homography(randomPairs, keypoints1, keypoints2, tempH);
-		int inliers = calc_inliers(pairs, keypoints1, keypoints2, tempH, epsilon);
-
-		if (inliers > max_inliers) {
-
-			for (int i = 0; i < 9; i++) {
-				h[i] = tempH[i];
-			}
-			max_inliers = inliers;
-		}
-	}
-	#ifdef DEBUG
-	cout << "max_inliers====>" << max_inliers << endl;
-	#endif
-	//recomputer_least_squares(keypoints1, keypoints2, h);
 }
 
 template<class T>
