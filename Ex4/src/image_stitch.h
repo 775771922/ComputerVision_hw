@@ -59,8 +59,6 @@ private:
     int valueWidth(double srcX, int width);
     int valueHeight(double srcY, int height);
 	CImg<T> get_gray_image(const CImg<T> &srcImg);
-	void ransac(double h[9], vector<Pair>& pairs, vector<VlSiftKeypoint> &keypoints1, 
-		vector<VlSiftKeypoint>& keypoints2, float epsilon);
 	void ransac(double forward[9], double backward[9], vector<Pair>& pairs, 
 	    vector<VlSiftKeypoint> &keypoints1, vector<VlSiftKeypoint>& keypoints2, float epsilon);
 
@@ -74,23 +72,25 @@ private:
 	void calc_img_feature(vector<ImgFeature> &imgsFeature, const CImg<T> &img);
 	vector<int> find_nearest_neighbor(int cur, const bool* isProjected, 
 		vector<ImgFeature> &imgFeatures, map<int, vector<Pair> > &pointPairs);
-    vector<CImg<T> > get_laplacian_pyramin(const CImg<T> &img);
-    CImg<T> laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
-	    double h[], int width, int height, int spectrum, int offsetX, int offsetY);
-    CImg<T> get_cylindrical_proj(const CImg<T> &img);
+    vector<CImg<T> > get_laplacian_pyramin(vector<CImg<T> > &g);
+    CImg<T> get_cylindrical_proj(CImg<T> &img, ImgFeature &imgFeature);
 
-    vector<CImg<float> > get_gaussian_pyramin(const CImg<float> &R);
-    vector<CImg<T> > laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, vector<CImg<float> > &R);
+    vector<CImg<T> > get_laplacian_pyramin(const CImg<T> &img);
+
+    vector<CImg<T> > get_gaussian_pyramin(const CImg<T> &img);
+    vector<CImg<T> > laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
+	    vector<CImg<T> > &ga, vector<CImg<T> > &gb, int middle, bool leftToRight);
+    vector<CImg<T> > laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
+    	int medium, bool leftToRight);
+    vector<CImg<T> > laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
+    	bool leftToRight);
     int calc_iterations(double p, double P, int n);
-    CImg<T> image_blend(CImg<T> &img1, CImg<T> &img2);
     CImg<T> image_stitch_and_blend(CImg<T> &res, int cur, int neighbor,
 	    vector<ImgFeature> &imgFeatures, const vector<CImg<T> > &imgs, double forward_h[],
 	    double backward_h[], bool* isProjected);
     CImg<T> image_stitch(CImg<T> &res, int cur, int neighbor, vector<ImgFeature> &imgFeatures,
 	    map<int, vector<Pair> > &pointPairs, const vector<CImg<T> > &imgs, bool *isProjected);
-    vector<CImg<T> > laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, bool leftToRight);
-    CImg<T> image_blend(CImg<T> &leftImg, CImg<T> &rightImg, bool leftToRight);
-    CImg<T> image_blend(CImg<T> &leftImg, CImg<T> &rightImg, CImg<float> &R, bool leftToRight);
+    CImg<T> image_blend(CImg<T> &leftImg, CImg<T> &rightImg, int middle, bool leftToRight);
 public:
 	ImageStitch(int octaves, int levels, int o_min);
 	CImg<T> image_stitch(const vector<CImg<T> > &imgs);
@@ -112,15 +112,6 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &inputImgs) {
 
 	vector<CImg<T> > imgs(inputImgs);
 
-    // for (int i = 0; i < imgs.size(); i++) {
-    // 	imgs[i] = get_cylindrical_proj(inputImgs[i]);
-    // 	imgs[i].display();
-    // 	char name[3];
-    // 	sprintf(name, "%d", i);
-    // 	string s(string(name)+".jpg");
-    // 	imgs[i].save_jpeg(s.c_str());
-    // }
-
 	#ifdef DEBUG
 	hh = imgs;
 	#endif
@@ -138,6 +129,10 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &inputImgs) {
 		cout << imgFeatures[i].keypoints.size() << endl;
 	}
 	#endif
+
+	for (int i = 0; i < imgs.size(); i++) {
+		imgs[i] = get_cylindrical_proj(imgs[i], imgFeatures[i]);
+	}
 
 	queue<int> q;
 	int randomIndex = rand() % imgs.size();
@@ -181,31 +176,31 @@ CImg<T> ImageStitch<T>::image_stitch(const vector<CImg<T> > &inputImgs) {
 }
 
 template<class T>
-CImg<T> ImageStitch<T>::get_cylindrical_proj(const CImg<T> &img) {
-	double alpha = 1.2*180/360;
+CImg<T> ImageStitch<T>::get_cylindrical_proj(CImg<T> &img, ImgFeature &imgFeature) {
+	double alpha = 1.2 * 180 / 360;
 	int width = img.width(), height = img.height(), spectrum = img.spectrum();
-	//double R = 900.0;
-	//cin >> R;
-    double R = width / (2*tan(alpha/2));
-    cout << "R====>" << R << endl;
- 
+	double R = width / (2*tan(alpha/2));
+
+    for (int i = 0; i < imgFeature.keypoints.size(); i++) {
+    	double x = imgFeature.keypoints[i].x, y = imgFeature.keypoints[i].y;
+    	double k = R / sqrt(R*R+(x-width/2)*(x-width/2));
+    	imgFeature.keypoints[i].x = (x-width/2)*k + width/2;
+    	imgFeature.keypoints[i].y = (y-height/2)*k + height/2;
+    }
+
     Point2f lt((0-width/2)*(R/sqrt(R*R+(0-width/2)*(0-width/2))) + width/2,
                (0-height/2)*(R/sqrt(R*R+(0-width/2)*(0-width/2))) + height/2),
             rb((width-1-width/2)*(R/sqrt(R*R+(width-1-width/2)*(width-1-width/2))) + width/2, 
                (height-1-height/2)*(R/sqrt(R*R+(width-1-width/2)*(width-1-width/2))) + height/2);
+    width = abs(rb.x-lt.x);
+    height = abs(rb.y-lt.y);
 
-    //int offsetX = lt.x, offsetY = rb.y;
-    width = abs(rb.x - lt.x);
-    height = abs(rb.y - lt.y);
-    cout << "width====>" << width << endl;
-    cout << "height====>" << height << endl;
-	
-	CImg<T> ret(width, height, 1, spectrum, 0);
-	for (int i = 0; i < width; i++) {
-		for (int j = 0; j < height; j++) {
-			double k = R / sqrt(R*R+(i-width/2)*(i-width/2));
-			double x = (i-width/2)/k + width/2;
-			double y = (j-height/2)/k + height/2;
+    CImg<T> ret(width, height, 1, spectrum, 0);
+    for (int i = 0; i < width; i++) {
+    	for (int j = 0; j < height; j++) {
+    		double k = R / sqrt(R*R+(i-width/2)*(i-width/2));
+    		double x = (i-width/2)/k + width/2;
+    		double y = (j-height/2)/k + height/2;
 
 			if (x >= 0 && x < width && y >= 0 && y < height) {
 				double u = x - (int)x, v = y - (int)y;
@@ -216,10 +211,10 @@ CImg<T> ImageStitch<T>::get_cylindrical_proj(const CImg<T> &img) {
 						    +u*(1-v)*img(valueWidth(x+1, img.width()), valueHeight(y, img.height()), 0, channel)
 						    +u*v*img(valueWidth(x+1, img.width()), valueHeight(y+1, img.height()), 0, channel));
 				}
-			}
-		}
-	}
-	return ret;
+			}    		
+    	}
+    }
+    return ret;
 }
 
 template<class T>
@@ -427,7 +422,6 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
             rb(Homography::calc_X(width, height, backward_h), 
                Homography::calc_Y(width, height, backward_h));
 
-
     int maxX = max(lt.x, max(lb.x, max(rt.x, rb.x)));
     int minX = min(lt.x, min(lb.x, min(rt.x, rb.x)));
     int maxY = max(lt.y, max(lb.y, max(rt.y, rb.y)));
@@ -457,8 +451,11 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
     CImg<T> img1(width, height, 1, res.spectrum(), 0);
     CImg<T> img2(width, height, 1, res.spectrum(), 0);
 
-    // for mutilband blend
-    CImg<float> R(width, height, 1, 1, 0);
+    // the overlap area of two images
+    minX = 100000;
+    maxX = 0;
+    minY = 100000;
+    maxY = 0;
 
     for (int i = 0; i < img1.width(); i++) {
     	for (int j = 0; j < img1.height(); j++) {    		
@@ -467,12 +464,6 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
     			for (int channel = 0; channel < res.spectrum(); channel++) {
     				img1(i, j, 0, channel) = res(projectI, projectJ, 0, channel);
     			}
-    			double x = Homography::calc_X(projectI, projectJ, forward_h),
-    		          y = Homography::calc_Y(projectI, projectJ, forward_h);
-
-	    		// if (x >= 0 && x < neighborImg.width() && y >= 0 && y < neighborImg.height()) {
-	    		// 	R(i, j, 0, 0) = 1.0;
-	    		// }
     		}
     	}
     }
@@ -500,6 +491,10 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
                         +u*(1-v)*neighborImg(valueWidth(x+1, neighborImg.width()), valueHeight(y, neighborImg.height()), 0, channel)
                         +u*v*neighborImg(valueWidth(x+1, neighborImg.width()), valueHeight(y+1, neighborImg.height()), 0, channel));    				
     			}
+    			if (img1(i, j, 0, 0) > 0) {
+    				minX = i < minX ? i : minX, maxX = i > maxX ? i : maxX;
+    				minY = j < minY ? j : minY, maxY = j > maxY ? j : maxY;
+    			}
 			}
     	}
     }
@@ -510,7 +505,6 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
     	double y = imgFeatures[neighbor].keypoints[i].y;
     	imgFeatures[neighbor].keypoints[i].x = Homography::calc_X(x, y, backward_h, offsetX);
     	imgFeatures[neighbor].keypoints[i].y = Homography::calc_Y(x, y, backward_h, offsetY);
-
     }
 
     (img1, img2).display("hhhhhhhhhhhhhhhh!");
@@ -521,15 +515,15 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
 
      if (img1.width() > img1.height()) {  // stitch images from left to right
      	if (offsetX == 0) {
-     		return image_blend(img1, img2, R, true);
+     		return image_blend(img1, img2, (minX+maxX)/2, true);
      	} else {
-     		return image_blend(img2, img1, R, true);
+     		return image_blend(img2, img1, (minX+maxX)/2, true);
      	}
      } else if (img1.height() > img1.width()) {   // stitch images from top to bottom
      	if (offsetY == 0) {
-     		return image_blend(img1, img2, R, false);
+     		return image_blend(img1, img2, (minY+maxY)/2, false);
      	} else {
-     		return image_blend(img2, img1, R, false);
+     		return image_blend(img2, img1, (minY+maxY)/2, false);
      	}
      } else {
      	assert(false);
@@ -538,32 +532,34 @@ CImg<T> ImageStitch<T>::image_stitch_and_blend(CImg<T> &res, int cur, int neighb
 }
 
 template<class T>
-CImg<T> ImageStitch<T>::image_blend(CImg<T> &leftImg, CImg<T> &rightImg, 
-	CImg<float> &R, bool leftToRight) {
-
-    #ifdef DEBUG
-    // R.display("R");
-    // R.save_jpeg("R.jpg");
-    #endif
+CImg<T> ImageStitch<T>::image_blend(CImg<T> &leftImg, CImg<T> &rightImg, int middle, bool leftToRight) {
 
 	assert(leftImg.width() == rightImg.width() && leftImg.height() == rightImg.height());
-	int width = leftImg.width(), height = leftImg.height(), spectrum = leftImg.spectrum();
-	CImg<T> ret(width, height, 1, spectrum);
+	int width = leftImg.width(), height = leftImg.height();
 	vector<CImg<T> > la;
     vector<CImg<T> > lb;
-    vector<CImg<float> > gau_pyramin_R;
+    vector<CImg<T> > ga;
+    vector<CImg<T> > gb;
     vector<CImg<T> > ls;
 	if (leftToRight) {
+		ga = get_gaussian_pyramin(leftImg);
+		gb = get_gaussian_pyramin(rightImg);
+		la = get_laplacian_pyramin(ga);
+	    lb = get_laplacian_pyramin(gb);
+	    ls = laplacian_combine(la, lb, ga, gb, middle, true);
 
-		// la = get_laplacian_pyramin(leftImg);
-	 //    lb = get_laplacian_pyramin(rightImg);
-	 //    //gau_pyramin_R = get_gaussian_pyramin(R);
-	 //    //ls = laplacian_combine(la, lb, gau_pyramin_R);
-	 //    ls = laplacian_combine(la, lb, true);
-	 //    assert(ls[0].width() == width && ls[0].height() == height);
-	 //    return ls[0];
+	    // la = get_laplacian_pyramin(leftImg);
+	    // lb = get_laplacian_pyramin(rightImg);
+	    // ls = laplacian_combine(la, lb, middle, true);
+
+	    // la = get_laplacian_pyramin(leftImg);
+	    // lb = get_laplacian_pyramin(rightImg);
+	    // ls = laplacian_combine(la, lb, middle, true);
+
+	    assert(ls[0].width() == width && ls[0].height() == height);
+	    return ls[0];
 	    
-		return image_combine(leftImg, rightImg, true);
+		//return image_combine(leftImg, rightImg, true);
 	} else {
 		// la = get_laplacian_pyramin(leftImg);
 		// lb = get_laplacian_pyramin(rightImg);
@@ -573,41 +569,34 @@ CImg<T> ImageStitch<T>::image_blend(CImg<T> &leftImg, CImg<T> &rightImg,
 		
 		return image_combine(leftImg, rightImg, false);
 	}
-	for (int i = 0; i < width; i++) {
-		for (int j = 0; j < height; j++) {
-			if (R(i, j, 0, 0) > 0) {
-				for (int channel = 0; channel < spectrum; channel++) {
-					ret(i, j, 0, channel) = ls[0](i, j, 0, channel);
-				}
-			} else if (leftImg(i, j, 0, 0) > 0) {
-				for (int channel = 0; channel < spectrum; channel++) {
-					ret(i, j, 0, channel) = leftImg(i, j, 0, channel);
-				}
-			} else if (rightImg(i, j, 0, 0) > 0) {
-				for (int channel = 0; channel < spectrum; channel++) {
-					ret(i, j, 0, channel) = rightImg(i, j, 0, channel);
-				}
-			} else {
-				//assert(false);
-			}
-		}
-	}
-	return ret;
 
 }
 
 template<class T>
-vector<CImg<float> > ImageStitch<T>::get_gaussian_pyramin(const CImg<float> &R) {
-	vector<CImg<float> > ret;
-	int width = R.width(), height = R.height();
-	CImg<float> g0 = R;
-	CImg<float> g1 = g0.get_blur(1.5).get_resize(g0.width()/2, g0.height()/2, g0.depth(), g0.spectrum(), 3);
-	CImg<float> g2 = g1.get_blur(1.5).get_resize(g1.width()/2, g1.height()/2, g1.depth(), g1.spectrum(), 3);
-	CImg<float> g3 = g2.get_blur(1.5).get_resize(g2.width()/2, g2.height()/2, g2.depth(), g2.spectrum(), 3);
+vector<CImg<T> > ImageStitch<T>::get_gaussian_pyramin(const CImg<T> &img) {
+	vector<CImg<T> > ret;
+	int width = img.width(), height = img.height();
+	CImg<T> g0 = img;
+	CImg<T> g1 = g0.get_blur(1.5).get_resize(g0.width()/2, g0.height()/2, g0.depth(), g0.spectrum(), 3);
+	CImg<T> g2 = g1.get_blur(1.5).get_resize(g1.width()/2, g1.height()/2, g1.depth(), g1.spectrum(), 3);
+	CImg<T> g3 = g2.get_blur(1.5).get_resize(g2.width()/2, g2.height()/2, g2.depth(), g2.spectrum(), 3);
 	ret.push_back(g0);
 	ret.push_back(g1);
 	ret.push_back(g2);
 	ret.push_back(g3);
+	return ret;
+}
+
+template<class T>
+vector<CImg<T> > ImageStitch<T>::get_laplacian_pyramin(vector<CImg<T> > &g) {
+	vector<CImg<T> > ret;
+	CImg<T> l2 = g[2] - g[3].get_resize(g[2].width(), g[2].height(), g[2].depth(), g[2].spectrum(), 3);
+	CImg<T> l1 = g[1] - g[2].get_resize(g[1].width(), g[1].height(), g[1].depth(), g[1].spectrum(), 3);
+	CImg<T> l0 = g[0] - g[1].get_resize(g[0].width(), g[0].height(), g[0].depth(), g[0].spectrum(), 3);
+	ret.push_back(l0);
+	ret.push_back(l1);
+	ret.push_back(l2);
+	ret.push_back(g[3]);
 	return ret;
 }
 
@@ -631,41 +620,67 @@ vector<CImg<T> > ImageStitch<T>::get_laplacian_pyramin(const CImg<T> &img) {
 
 template<class T>
 vector<CImg<T> > ImageStitch<T>::laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
-	vector<CImg<float> > &R) {
+	vector<CImg<T> > &ga, vector<CImg<T> > &gb, int middle, bool leftToRight) {
 	assert(la.size() == lb.size());
 	int spectrum = la[0].spectrum();
 	vector<CImg<T> > ls(4);
-	
-	for (int i = 0; i < la.size(); i++) {
-		ls[i].assign(la[i].width(), la[i].height(), la[i].depth(), la[i].spectrum(), 0);
-		for (int col = 0; col < la[i].width(); col++) {
-			for (int row = 0; row < la[i].height(); row++) {
-				for (int channel = 0; channel < spectrum; channel++) {
-					float u = R[i](col, row, 0, 0);
-					ls[i](col, row, 0, channel) = u*la[i](col, row, 0, channel) + (1-u)*lb[i](col ,row, 0, channel);
+	vector<CImg<T> > gs(4);
+
+	if (leftToRight) {
+		for (int i = 0; i < la.size(); i++) {
+			ls[i].assign(la[i].width(), la[i].height(), la[i].depth(), la[i].spectrum(), 0);
+			gs[i].assign(la[i].width(), la[i].height(), la[i].depth(), la[i].spectrum(), 0);
+			for (int col = 0; col < la[i].width(); col++) {
+				for (int row = 0; row < la[i].height(); row++) {
+					if (col <= middle) {
+						for (int channel = 0; channel < spectrum; channel++) {
+							ls[i](col, row, 0, channel) = la[i](col ,row, 0, channel);
+							gs[i](col, row, 0, channel) = ga[i](col ,row, 0, channel);
+						}
+					} else {
+						for (int channel = 0; channel < spectrum; channel++) {
+							ls[i](col, row, 0, channel) = lb[i](col, row, 0, channel);
+							gs[i](col, row, 0, channel) = gb[i](col, row, 0, channel);
+						}
+					}
 				}
 			}
+			middle /= 2;
+		}
+	} else {
+		for (int i = 0; i < la.size(); i++) {
+			ls[i].assign(la[i].width(), la[i].height(), la[i].depth(), la[i].spectrum(), 0);
+			gs[i].assign(la[i].width(), la[i].height(), la[i].depth(), la[i].spectrum(), 0);
+			for (int col = 0; col < la[i].width(); col++) {
+				for (int row = 0; row < la[i].height(); row++) {
+					if (row <= middle) {
+						for (int channel = 0; channel < spectrum; channel++) {
+							ls[i](col, row, 0, channel) = la[i](col, row, 0, channel);
+							gs[i](col, row, 0, channel) = ga[i](col ,row, 0, channel);
+						}
+					} else {
+						for (int channel = 0; channel < spectrum; channel++) {
+							ls[i](col, row, 0, channel) = lb[i](col, row, 0, channel);
+							gs[i](col, row, 0, channel) = gb[i](col, row, 0, channel);
+						}
+					}
+				}
+			}
+			middle /= 2;
 		}
 	}
 
 	vector<CImg<T> > ret(4);
 	ret[3] = ls[3];
 	for (int i = 2; i >= 0; i--) {
-		ret[i] = ret[i+1].get_resize(ls[i].width(), ls[i].height()) + ls[i];
+		ret[i] = ret[i+1].get_resize(ls[i].width(), ls[i].height(), ls[i].depth(), ls[i].spectrum(), 3) + ls[i];
 	}
 
-
-    #ifdef DEBUG
-    ret[0].display("ret[0]");
-    ret[0].save_jpeg("ret[0].jpg");
-    #endif
-
-	return ret;	
-	
+	return ret;
 }
 
 template<class T>
-vector<CImg<T> > ImageStitch<T>::laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, bool leftToRight) {
+vector<CImg<T> > ImageStitch<T>::laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, int middle, bool leftToRight) {
 	assert(la.size() == lb.size());
 	int spectrum = la[0].spectrum();
 	vector<CImg<T> > ls(4);
@@ -673,9 +688,10 @@ vector<CImg<T> > ImageStitch<T>::laplacian_combine(vector<CImg<T> > &la, vector<
 	if (leftToRight) {
 		for (int i = 0; i < la.size(); i++) {
 			ls[i].assign(la[i].width(), la[i].height(), la[i].depth(), la[i].spectrum(), 0);
+
 			for (int col = 0; col < la[i].width(); ++col) {
 				for (int row = 0; row < la[i].height(); ++row) {
-					if (col < la[i].width()/2) {
+					if (col < middle) {
 						for (int channel = 0; channel < spectrum; channel++) {
 							ls[i](col, row, 0, channel) = la[i](col ,row, 0, channel);
 						}
@@ -686,13 +702,14 @@ vector<CImg<T> > ImageStitch<T>::laplacian_combine(vector<CImg<T> > &la, vector<
 					}
 				}
 			}
+			middle /= 2;
 		}
 	} else {
 		for (int i = 0; i < la.size(); i++) {
 			ls[i].assign(la[i].width(), la[i].height(), la[i].depth(), la[i].spectrum(), 0);
 			for (int col = 0; col < la[i].width(); col++) {
 				for (int row = 0; row < la[i].height(); row++) {
-					if (row < la[i].height()/2) {
+					if (row < middle/(i+1)) {
 						for (int channel = 0; channel < spectrum; channel++) {
 							ls[i](col, row, 0, channel) = la[i](col, row, 0, channel);
 						}
@@ -713,45 +730,6 @@ vector<CImg<T> > ImageStitch<T>::laplacian_combine(vector<CImg<T> > &la, vector<
 	}
 
 	return ret;
-}
-
-template<class T>
-CImg<T> ImageStitch<T>::laplacian_combine(vector<CImg<T> > &la, vector<CImg<T> > &lb, 
-	double h[], int width, int height, int spectrum, int offsetX, int offsetY) {
-	vector<CImg<T> > ls(4);
-	vector<CImg<T> > ret(4);
-
-	for (int i = 0; i < ls.size(); i++) {
-		ls[i].assign(width/(i+1), height/(i+1), 1, spectrum, 0);
-
-		for (int col = 0; col < ls[i].width(); col++) {
-			for (int row = 0; row < ls[i].height(); row++) {
-				int c = col - offsetX/(i+1), r = row - offsetY/(i+1);
-				double x = c*h[0]+r*h[1]+h[2], y = c*h[3]+r*h[4]+h[5];
-				if (x >= 0 && x < lb[i].width() && y >= 0 && y < lb[i].height()) {
-					double u = x - (int)x, v = y - (int)y;
-					for (int channel = 0; channel < spectrum; channel++) {
-						ls[i](col, row, 0, channel) = 
-						    (int)((1-u)*(1-v)*lb[i](valueWidth(x, lb[i].width()), valueHeight(y, lb[i].height()), 0, channel)
-						    +(1-u)*v*lb[i](valueWidth(x, lb[i].width()), valueHeight(y+1, lb[i].height()), 0, channel)
-						    +u*(1-v)*lb[i](valueWidth(x+1, lb[i].width()), valueHeight(y, lb[i].height()), 0, channel)
-						    +u*v*lb[i](valueWidth(x+1, lb[i].width()), valueHeight(y+1, lb[i].height()), 0, channel));
-					}
-				} else if (c >= 0 && c < la[i].width() && r >= 0 && r < la[i].height()) {
-					for (int channel = 0; channel < la[i].spectrum(); channel++) {
-						ls[i](col, row, 0, channel) = la[i](c, r, 0, channel);
-					}
-				}
-			}
-		}
-	}
-
-    ret[3] = ls[3];
-    for (int i = 2; i >= 0; i--) {
-    	ret[i] = ls[i] + ls[i+1].resize(ls[i].width(), ls[i].height());
-    }
-
-	return ret[0];
 }
 
 template<class T>
@@ -854,9 +832,6 @@ void ImageStitch<T>::calc_homography(vector<Pair> &randomPairs, vector<VlSiftKey
 		srcV.push_back(Point2f(keypoints1[randomPairs[i].k1].x, keypoints1[randomPairs[i].k1].y));
 		destV.push_back(Point2f(keypoints2[randomPairs[i].k2].x, keypoints2[randomPairs[i].k2].y));
 	}
-
-	//Mat matrix = findHomography(srcV, destV);
-	//Mat matrix = getPerspectiveTransform(srcV, destV);
 	Homography::calc_homography(srcV, destV, h);
 
 }
@@ -918,10 +893,7 @@ CImg<T> ImageStitch<T>::get_gray_image(const CImg<T> &srcImg) {
             gr = 0.299*(r) + 0.587*(g) + 0.114*(b);
             grayImg(i, j, 0, 0) = (T)gr;
         }
-    }  
-    #ifdef DEBUG
-    //grayImg.display();
-    #endif
+    }
     return grayImg;
 }
 
