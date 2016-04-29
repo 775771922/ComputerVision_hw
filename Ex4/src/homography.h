@@ -32,7 +32,7 @@ public:
 
 	static inline void calc_homography(const vector<Point2f> &src,
 		const vector<Point2f> &dest, double h[]) {
-		//Mat m = Mat(2*4, 3, CV_64FC1);
+		//Mat m = Mat(3, 3, CV_64FC1, H);
 		Mat matrix = getPerspectiveTransform(src, dest);
 		int nRows = matrix.rows;
 		int nCols = matrix.cols;
@@ -42,6 +42,22 @@ public:
 		    }
 		}
 
+	}
+
+	static inline void least_squares(double *A, double *b, double h[], int N) {
+		Mat matrixA = Mat(2*N, 8, CV_64FC1, A);
+		Mat vectorB = Mat(2*N, 1, CV_64FC1, b);
+		Mat tranA = matrixA.t();
+		Mat res = (tranA*matrixA).inv()*tranA*vectorB;
+		int nRows = res.rows;
+		//int nCols = res.cols;
+		for (int i = 0; i < nRows; i++) {
+  	        h[i] = res.at<double>(i, 0);
+		}
+		h[8] = 1;
+		cout << res << endl;
+		cout << "nRows===>" << nRows << endl;
+		//cout << "nCols===>" << nCols << endl;
 	}
 };
 
