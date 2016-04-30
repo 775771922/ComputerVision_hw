@@ -15,3 +15,7 @@ Canny edge detection. Hough transformation. A4 paper edge detection.
 ###Ex3
 
 Image wrapping. A4 paper correction.
+
+###Ex4
+
+Image stitch.
