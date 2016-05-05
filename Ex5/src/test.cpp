@@ -1,3 +1,5 @@
+#include "image_segmentation.h"
+
 #include <iostream>
 #include <string>
 #include <cstdio>
@@ -11,7 +13,40 @@ using namespace std;
 
 vector<string> get_files_from_dir(string dir);
 
-int main() {
+int main(int argc, char** argv) {
+	vector<string> files;
+
+	if (argc <= 1) {
+		return 0;
+	} else if (argc == 2) {
+    	string file(argv[1]);
+		size_t dot_index = file.find(".");
+
+		if (dot_index == string::npos) {
+			files = get_files_from_dir(file);
+		} else {
+			files.push_back(string(argv[1]));
+		}
+    } else {
+    	for (int i = 1; i < argc; i++) {
+    		files.push_back(string(argv[i]));
+    	}
+    }
+
+	ImageSeg<unsigned char> imageSeg;
+	vector<CImg<unsigned char> > imgs;
+	for (int i = 0; i < files.size(); i++) {
+		cout << "file===>" << i << " " << files[i] << endl;
+		imgs.push_back(CImg<unsigned char>(files[i].c_str()));
+		
+	}
+
+    vector<CImg<unsigned char> > ret;
+	ret = imageSeg.segment_images(imgs);
+	for (int i = 0; i < ret.size(); i++) {
+		ret[i].display();
+		ret[i].save_jpeg("ret.jpg");
+	}
 	
 }
 

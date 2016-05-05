@@ -1,6 +1,6 @@
 CC=g++
-CV=-I/usr/local/include/opencv2 -L/usr/local/lib  -lopencv_shape -lopencv_stitching -lopencv_objdetect -lopencv_superres -lopencv_videostab -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_videoio -lopencv_imgcodecs -lopencv_video -lopencv_photo -lopencv_ml -lopencv_imgproc -lopencv_flann -lopencv_core -lopencv_hal
-VL=-lvl
+#CV=-I/usr/local/include/opencv2 -L/usr/local/lib  -lopencv_shape -lopencv_stitching -lopencv_objdetect -lopencv_superres -lopencv_videostab -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_videoio -lopencv_imgcodecs -lopencv_video -lopencv_photo -lopencv_ml -lopencv_imgproc -lopencv_flann -lopencv_core -lopencv_hal
+#VL=-lvl
 
 OS_NAME = $(shell uname -s)
 LC_OS_NAME = $(shell echo $(OS_NAME) | tr '[A-Z]' '[a-z]')
@@ -15,8 +15,8 @@ endif
 
 all: test
 
-test: test.cpp blend.h image_stitch.h homography.h
-	$(CC) $(GG) $(CV) $(VL) -o test test.cpp
+test: test.cpp image_segmentation.h
+	$(CC) $(GG) -o test test.cpp
 
 # image_stitch: image_stitch.cpp
 # 	$(CC) $(GG) -c image_stitch.cpp
