@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <float.h>
 using namespace std;
 
 #include "CImg.h"
@@ -56,26 +57,46 @@ CImg<T> ImageSeg<T>::segment_image(const CImg<T> &img) {
 	memset(histogram, 0, sizeof(histogram));
 	memset(probability, 0.0, sizeof(probability));
 	get_histogram(temp, histogram, probability, L);
-	int k = 50;
-	float P1 = get_probability_of_class(k, probability, L, 1), 
-	      P2 = get_probability_of_class(k, probability, L, 2);
-	float m1 = get_mean_intensity_of_class(k, probability, P1, L, 1),
-	      m2 = get_mean_intensity_of_class(k, probability, P2, L, 2),
-	      mg = get_mean_intensity_of_global(probability, L),
-	      m = get_mean_intensity_of_level(probability, k),
-	      sigmaG = get_global_variance(probability, mg, L),
-	      sigmaB = get_between_class_variance(P1, mg, m),
-	      eta = sigmaB / sigmaG;
+	int kk = 1;
+	float max = FLT_MIN;
+	for (int k = 1; k < L-1; k++) {
+		float P1 = get_probability_of_class(k, probability, L, 1), 
+	          P2 = get_probability_of_class(k, probability, L, 2);
+	    float m1 = get_mean_intensity_of_class(k, probability, P1, L, 1),
+	          m2 = get_mean_intensity_of_class(k, probability, P2, L, 2),
+	       	  mg = get_mean_intensity_of_global(probability, L),
+	      	  m = get_mean_intensity_of_level(probability, k),
+	          sigmaG = get_global_variance(probability, mg, L),
+	          sigmaB = get_between_class_variance(P1, mg, m);
+	          //eta = sigmaB / sigmaG;
+	    if (sigmaB > max) {
+	    	max = sigmaB;
+	    	kk = k;
+	    }
+	}
+
+	cout << "max=" << max << "   " << "k=" << kk << endl;
 
     for (int i = 0; i < width; i++) {
     	for (int j = 0; j < height; j++) {
-    		if (temp(i, j, 0, 0) >= k) {
+    		if (temp(i, j, 0, 0) >= kk) {
     			temp(i, j, 0, 0) = 255;
     		} else {
     			temp(i, j, 0, 0) = 0;
     		}
     	}
     }
+
+    #ifdef DEBUG
+    cout << "after test=======>" << endl;
+    for (int i = 0; i < width; i++) {
+    	for (int j = 0; j < height; j++) {
+    		assert(temp(i, j, 0, 0) == 255 || temp(i, j, 0, 0) == 0);
+    		if (temp(i, j, 0, 0) != 255 && temp(i, j, 0, 0) != 0) 
+    			cout << temp(i, j, 0, 0) << endl;
+    	}
+    }
+    #endif
 
     return temp;
 
@@ -84,7 +105,7 @@ CImg<T> ImageSeg<T>::segment_image(const CImg<T> &img) {
 template<class T>
 void ImageSeg<T>::get_histogram(const CImg<T> &img, int histogram[], float probability[], int L) {
 	assert(img.spectrum() == 1);
-	int M = img.width(), N = img.height();
+	int M = img.width(), N = img.height(), sum = 0;
 	for (int i = 0; i < M; i++) {
 		for (int j = 0; j < N; j++) {
 			int l = (int)img(i, j, 0, 0);
@@ -94,23 +115,12 @@ void ImageSeg<T>::get_histogram(const CImg<T> &img, int histogram[], float proba
 	}
 
 	for (int i = 0; i < L; i++) {
-		probability[i] = (float)histogram[i] / (M*N);
+		sum += histogram[i];
 	}
 
-    #ifdef DEBUG
-    for (int i = 0; i < L; i++) {
-    	cout << histogram[i] << " ";
-    	if (i % 20 == 0) {
-    		cout << endl;
-    	}
-    }
-    for (int i = 0; i < L; i++) {
-    	cout << probability[i] << " ";
-    	if (i % 20 == 0) {
-    		cout << endl;
-    	}
-    }
-    #endif
+	for (int i = 0; i < L; i++) {
+		probability[i] = (float)histogram[i] / sum;
+	}
 
 }
 

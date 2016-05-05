@@ -45,7 +45,11 @@ int main(int argc, char** argv) {
 	ret = imageSeg.segment_images(imgs);
 	for (int i = 0; i < ret.size(); i++) {
 		ret[i].display();
-		ret[i].save_jpeg("ret.jpg");
+		string path = files[i].substr(files[i].find_last_of("/\\")+1, files[i].length());
+		path = "image/" + path;
+		cout << "path==>" << path << endl;
+
+		ret[i].save_jpeg(path.c_str());
 	}
 	
 }
