@@ -1,5 +1,3 @@
-#include "image_segmentation.h"
-
 #include <iostream>
 #include <string>
 #include <cstdio>
@@ -9,7 +7,9 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include "opencv2/opencv.hpp"
 using namespace std;
+using namespace cv;
 
 vector<string> get_files_from_dir(string dir);
 
@@ -33,24 +33,25 @@ int main(int argc, char** argv) {
     	}
     }
 
-	ImageSeg<unsigned char> imageSeg;
-	vector<CImg<unsigned char> > imgs;
+	vector<Mat> imgs(files.size());
 	for (int i = 0; i < files.size(); i++) {
-		imgs.push_back(CImg<unsigned char>(files[i].c_str()));
+		cout << "file===>" << i << " " << files[i] << endl;
+		// imgs.push_back(CImg<unsigned char>(files[i].c_str()));
+		imgs[i] = imread(files[i], IMREAD_GRAYSCALE);
 		
 	}
 
 	system("mkdir image");
 
-    vector<CImg<unsigned char> > ret;
-	ret = imageSeg.segment_images(imgs);
-	for (int i = 0; i < ret.size(); i++) {
-		
+    vector<Mat> rets(files.size());
+	for (int i = 0; i < rets.size(); i++) {
+		threshold(imgs[i], rets[i], 0, 255, CV_THRESH_BINARY | CV_THRESH_OTSU);
 		string path = files[i].substr(files[i].find_last_of("/\\")+1, files[i].length());
 		path = path.substr(0, path.find_last_of('.'));
 		path = "image/" + path + ".png";
-		
-		ret[i].save(path.c_str());
+		cout << "path==>" << path << endl;
+
+		imwrite(path, rets[i]);
 	}
 	
 }

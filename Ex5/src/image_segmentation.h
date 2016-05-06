@@ -12,7 +12,7 @@ using namespace std;
 #include "CImg.h"
 using namespace cimg_library;
 
-#define DEBUG
+//#define DEBUG
 
 template<class T>
 class ImageSeg {
@@ -47,7 +47,7 @@ CImg<T> ImageSeg<T>::segment_image(const CImg<T> &img) {
     if (img.spectrum() > 1) {
     	temp = get_gray_image(img);
     } else {
-    	temp.assign(img);
+    	temp = img;
     }
 
     int width = temp.width(), height = temp.height();
@@ -66,7 +66,7 @@ CImg<T> ImageSeg<T>::segment_image(const CImg<T> &img) {
 	          m2 = get_mean_intensity_of_class(k, probability, P2, L, 2),
 	       	  mg = get_mean_intensity_of_global(probability, L),
 	      	  m = get_mean_intensity_of_level(probability, k),
-	          sigmaG = get_global_variance(probability, mg, L),
+	          //sigmaG = get_global_variance(probability, mg, L),
 	          sigmaB = get_between_class_variance(P1, mg, m);
 	          //eta = sigmaB / sigmaG;
 	    if (sigmaB > max) {
@@ -74,8 +74,6 @@ CImg<T> ImageSeg<T>::segment_image(const CImg<T> &img) {
 	    	kk = k;
 	    }
 	}
-
-	cout << "max=" << max << "   " << "k=" << kk << endl;
 
     for (int i = 0; i < width; i++) {
     	for (int j = 0; j < height; j++) {
@@ -86,17 +84,6 @@ CImg<T> ImageSeg<T>::segment_image(const CImg<T> &img) {
     		}
     	}
     }
-
-    #ifdef DEBUG
-    cout << "after test=======>" << endl;
-    for (int i = 0; i < width; i++) {
-    	for (int j = 0; j < height; j++) {
-    		assert(temp(i, j, 0, 0) == 255 || temp(i, j, 0, 0) == 0);
-    		if (temp(i, j, 0, 0) != 255 && temp(i, j, 0, 0) != 0) 
-    			cout << temp(i, j, 0, 0) << endl;
-    	}
-    }
-    #endif
 
     return temp;
 

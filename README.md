@@ -19,3 +19,7 @@ Image wrapping. A4 paper correction.
 ###Ex4
 
 Image stitch.
+
+###Ex5
+
+Image Segmentation.
