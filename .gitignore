@@ -1,0 +1,5 @@
+.DS_Store
+Ex6/t10k-images.idx3-ubyte
+Ex6/t10k-labels.idx1-ubyte
+Ex6/train-images.idx3-ubyte
+Ex6/train-labels.idx1-ubyte
