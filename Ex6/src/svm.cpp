@@ -1,19 +1,21 @@
-#include <opencv2\opencv.hpp>
+#include "opencv2/opencv.hpp"
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/ml/ml.hpp>
+
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <cassert>
-#include "TrainingSet.h"
+#include <ctime>
 
 using namespace cv;
 using namespace std;
 
-vector<Mat> trainingData;
-vector<int> trainingLabel;
-vector<Mat> testData;
-vector<int> testLabel;
 
-ofstream display;
+const int ITERATIVE_COUNT = 2000;
+
 
 int reverseDigit(int i) {
 	unsigned char c1, c2, c3, c4;
@@ -27,10 +29,11 @@ int reverseDigit(int i) {
 }
 
 //读取用于测试的手写字体图片;
-void readTestImages() {
+vector<Mat> readTestImages() {
 	int idx = 0;
 	Mat img;
 	ifstream file;
+	vector<Mat> testData;
 	cout<<"Test..." << endl;
 	file.open("t10k-images.idx3-ubyte", ios::binary);
 	if(!file.is_open()) {
@@ -66,7 +69,7 @@ void readTestImages() {
 				}
 			}
 
-			string imgName ="Test/"+ to_string(idx) + ".jpg";
+			//string imgName ="Test/"+ to_string(idx) + ".jpg";
 			img = img.reshape(0, 1);
 			testData.push_back(img);
 			//imwrite(imgName, img);
@@ -76,13 +79,15 @@ void readTestImages() {
 	}
 	file.close();
 	cout << "Reading t10k-images.idx3-ubyte complete!" << endl;
+	return testData;
 }
 
 //读取用于训练的手写字体图片;
-void readTrainImages() {
+vector<Mat> readTrainImages() {
 	int idx = 0;
 	Mat img;
 	ifstream file;
+	vector<Mat> trainingData;
 	cout << "Training..." << endl;
 	file.open("train-images.idx3-ubyte", ios::binary);
 	if(!file.is_open()) {
@@ -118,31 +123,25 @@ void readTrainImages() {
 				}
 			}
 
-			string imgName = "Train/"+ to_string(idx) + ".jpg";
-			//Mat tmp = img;
-			//tmp.convertTo(tmp, CV_32F);
-			//testData.push_back(tmp);
-			//imwrite(imgName, img);
 			img = img.reshape(0, 1);
 			trainingData.push_back(img);
 			img.release();
-			//tmp.release();
 			idx++;
 		}
 	}
 	file.close();
 	cout << "Reading train-images.idx3-ubyte complete!" << endl;
+	return trainingData;
 }
 
 //读取用于测试的手写字体标签, 主要用来与predict的结果做对比;
-void readTestLabels() {
+vector<int> readTestLabels() {
 	int idx = 0;
 	Mat img;
 	ifstream file;
-	//ofstream file2;
+	vector<int> testLabel;
 	cout<<"Test..." << endl;
 	file.open("t10k-labels.idx1-ubyte", ios::binary);
-	//file2.open("testLabels.txt");
 	
 	if(!file.is_open()) {
 		cout << "File Not Found!" << endl;
@@ -162,24 +161,22 @@ void readTestLabels() {
 		for(long int i = 0; i < number_of_labels; ++i) {	
 			unsigned char temp=0;
 			file.read((char*)&temp,sizeof(temp));
-			//file2 << (int)temp << endl;
 			testLabel.push_back((int)temp);
 		}
 	}
 	file.close();
-	//file2.close();
 	cout << "Reading t10k-labels.idx1-ubyte complete!" << endl;
+	return testLabel;
 }
 
 //读取用于训练的手写字体标签, 主要用来标志predict的结果;
-void readTrainLabels() {
+vector<int> readTrainLabels() {
 	int idx = 0;
 	Mat img;
 	ifstream file;
-	//ofstream file2;
+	vector<int> trainingLabel;
 	cout<<"Training..." << endl;
 	file.open("train-labels.idx1-ubyte", ios::binary);
-	//file2.open("trainLabels.txt");
 	
 	if(!file.is_open()) {
 		cout << "File Not Found!" << endl;
@@ -199,38 +196,38 @@ void readTrainLabels() {
 		for(long int i = 0; i < number_of_labels; ++i) {	
 			unsigned char temp=0;
 			file.read((char*)&temp, sizeof(temp));
-			//file2 << (int)temp << endl;
 			trainingLabel.push_back((int)temp);
 		}
 	}
 	file.close();
-	//file2.close();
 	cout << "Reading train-labels.idx1-ubyte complete!" << endl;
+	return trainingLabel;
 }
 
-vector<TrainingSet> readTestSet() {
-	vector<TrainingSet> output;
-	readTestImages();
-	readTestLabels();
+vector<pair<Mat, int> > readTestSet() {
+	vector<pair<Mat, int> > output;
+	vector<Mat> testData = readTestImages();
+	vector<int> testLabel = readTestLabels();
+	assert(testLabel.size() == testData.size());
 	for (int i = 0; i < testLabel.size(); i++){
 		Mat tmp = testData[i];
 		tmp.convertTo(tmp, CV_32F);
-		output.push_back(TrainingSet(tmp, testLabel[i]));
+		output.push_back(pair<Mat, int>(tmp, testLabel[i]));
 	}
 	return output;
 }
 
 pair<Mat, Mat> readTrainingSet() {
 	pair<Mat, Mat> output;
-	readTrainImages();
-	readTrainLabels();
+	vector<Mat> trainData = readTrainImages();
+	vector<int> trainLabels = readTrainLabels();
 	Mat output_data, output_label;
-	assert(trainingData.size() == trainingLabel.size());
-	for (int i = 0; i < trainingData.size(); i++){
-		Mat tmp = trainingData[i];
+	assert(trainData.size() == trainLabels.size());
+	for (int i = 0; i < trainData.size(); i++){
+		Mat tmp = trainData[i];
 		tmp.convertTo(tmp, CV_32F);
 		output_data.push_back(tmp);
-		output_label.push_back(trainingLabel[i]);
+		output_label.push_back(trainLabels[i]);
 	}
 	//output_data.convertTo(output_data, CV_32F);
 	output.first = output_data;
@@ -245,29 +242,33 @@ void train() {
 	CvSVMParams params;
 	params.svm_type = CvSVM::C_SVC;
 	params.kernel_type = CvSVM::LINEAR;
-	params.term_crit = cvTermCriteria(CV_TERMCRIT_ITER, 100, 1e-6);
+	//params.kernel_type = CvSVM::SIGMOID;
+	//params.kernel_type = CvSVM::RBF;
+	params.term_crit = cvTermCriteria(CV_TERMCRIT_ITER, ITERATIVE_COUNT, 1e-6);
 	CvSVM SVM;
 	cout << "data size: " << trainData.first.size() << " ";
 	cout << "label size: " << trainData.second.size() << endl;
 	SVM.train(trainData.first, trainData.second, Mat(), Mat(), params);
-	SVM.save("helloworld");
+	string name = "svm-linear-kernel-" + to_string(ITERATIVE_COUNT);
+	SVM.save(name.c_str());
 }
 
 vector<pair<int, int>> predict() {
-	vector<TrainingSet> testingData;
 	vector<pair<int, int>> results;
 	int prediction;
-	testingData = readTestSet();
+	vector<pair<Mat, int> > testingData = readTestSet();
 	CvSVM SVM;
-	SVM.load("helloworld");
-	display.open("Result.txt", ios::out);
+	string name = "svm-linear-kernel-" + to_string(ITERATIVE_COUNT);
+	SVM.load(name.c_str()); 
+	ofstream fout("svm-res.txt", ios::app);
+	fout << name << endl;
 	for (int i = 0; i < testingData.size(); i++){
-		prediction = SVM.predict(testingData[i].data);
-		results.push_back(pair<int, int>(testingData[i].label, prediction));
-		cout << testingData[i].label << " " << prediction << endl;
-		display << testingData[i].label << " " << prediction << endl;
+		prediction = SVM.predict(testingData[i].first);
+		results.push_back(pair<int, int>(testingData[i].second, prediction));
+		//cout << testingData[i].label << " " << prediction << endl;
+		//fout << testingData[i].label << " " << prediction << endl;
 	}
-	display.close();
+	fout.close();
 	return results;
 }
 
@@ -282,40 +283,25 @@ void calculateAccuracy() {
 		}
 	}
 
-	display.open("Result.txt", ios::app | ios::out);
+	ofstream fout("svm-res.txt", ios::app | ios::out);
 	cout << correct << endl;
-	display << correct << endl;
+	fout << correct << endl;
 
 	cout << "Accuracy:" << (double)correct * 100.0 / (double)result.size() << endl;
-	display << "Accuracy:" << (double)correct * 100.0 / (double)result.size() << endl;
-	display.close();
+	fout << "Accuracy:" << (double)correct * 100.0 / (double)result.size() << endl;
+	fout.close();
 }
 
 int main(int argc, char ** argv) {
-
-	//readTrainImages();
-	//cout << "Reading train-images.idx3-ubyte complete!" << endl;
-
-	//readTestImages();
-	//cout << "Reading t10k-images.idx3-ubyte complete!" << endl;
-
-	//readTrainLabels();
-	//cout << "Reading train-labels.idx1-ubyte complete!" << endl;
-
-	//readTestLabels();
-	//cout << "Reading t10k-labels.idx1-ubyte complete!" << endl;
-
+	time_t start = clock();
 	train();
+	time_t end = clock();
+	ofstream fout("svm-res.txt", ios::app | ios::out);
+	time_t prediction_start = clock();
 	calculateAccuracy();
-
-
-	trainingData.clear();
-	trainingLabel.clear();
-	testData.clear();
-	testLabel.clear();
-	vector<Mat> trainingData;
-	vector<int>().swap(trainingLabel);
-	vector<Mat>().swap(testData);
-	vector<int>().swap(testLabel);
+	time_t prediction_end = clock();
+	fout << "cost===>" << double(end-start)/CLOCKS_PER_SEC << endl;
+	fout << "prediction====>" << double(prediction_end-prediction_start)/CLOCKS_PER_SEC << endl << endl;
+	fout.close();
 	return 0;
 }
