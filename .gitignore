@@ -8,3 +8,6 @@ final project/*.jpg
 final project/*.pdf
 final project/src/*.jpg
 final project/src/*.o
+final project/src/image1
+final project/src/image2
+final project/src/image3

@@ -2,6 +2,7 @@
 #include <cassert>
 
 //#define CANNY_DEBUG
+namespace xyz {
 
 Canny::Canny(float sigma, int winSize, int firstDerWinSize)
      :gaussian(sigma, winSize, firstDerWinSize) {
@@ -175,5 +176,7 @@ CImg<float> Canny::get_gray_image(const CImg<float> &srcImg) {
         }
     }  
     return grayImg;
+}
+
 }
 

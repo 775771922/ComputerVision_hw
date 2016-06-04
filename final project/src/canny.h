@@ -6,6 +6,8 @@
 
 using namespace cimg_library;
 
+namespace xyz {
+
 class Canny {
 public:
 	Canny(float sigma = 1.5, int winSize = 1, int firstDerWinSize = 1);
@@ -33,5 +35,6 @@ private:
 	CImg<float> link_edge(const CImg<float> &srcImg);
 	
 };
+}
 
 #endif

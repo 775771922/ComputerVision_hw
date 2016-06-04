@@ -14,22 +14,22 @@ int main(int argc, char **argv) {
 	}
 	CImg<float> srcImg(argv[1]);
 
-	Canny canny(1.5, 3, 3);
-	CImg<float> cannyDetectImg = canny.detect_edge(srcImg);
-    cannyDetectImg.save_jpeg("canny.jpg");
+	// Canny canny(1.5, 3, 3);
+	// CImg<float> cannyDetectImg = canny.detect_edge(srcImg);
+ //    cannyDetectImg.save_jpeg("canny.jpg");
 	
-	int width = cannyDetectImg.width();
-	int height = cannyDetectImg.height();
-	int diagonal = sqrt(width*width + height*height);
+	// int width = cannyDetectImg.width();
+	// int height = cannyDetectImg.height();
+	// int diagonal = sqrt(width*width + height*height);
 
-	HoughTransform hough(360, diagonal);
-	hough.draw_hough_space(cannyDetectImg);
+	// HoughTransform hough(360, diagonal);
+	// hough.draw_hough_space(cannyDetectImg);
 
-    double rate = 0.4;
-    int errorTheta = 10, errorP = 75; //125;
+    double rate = 0.2;
+    int errorTheta = 5, errorP = 50; //125;
     PaperCorection dect(rate, errorTheta, errorP);
 
-    dect.paper_corection(hough.get_hough_space(), srcImg, cannyDetectImg);
+    dect.paper_corection(srcImg);
 
 
 }
