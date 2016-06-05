@@ -19,8 +19,6 @@ int main(int argc, char **argv) {
 
     //paperCorrection.paper_corection(srcImg);
 
-    //numberReg.correct_paper(srcImg);
-
     numberReg.project_to_x(paperCorrection.paper_corection(srcImg));
     //numberReg.project_to_y(paperCorrection.paper_corection(srcImg));
 
