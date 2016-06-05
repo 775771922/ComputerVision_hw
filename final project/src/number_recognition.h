@@ -5,6 +5,7 @@
 #include "paper_corection.h"
 #include <vector>
 #include <iostream>
+#include <fstream>
 using namespace std;
 using namespace cimg_library;
 
@@ -15,6 +16,7 @@ using namespace cimg_library;
 #define MIN_LENGTH_ON_Y 20
 #define MIN_LENGTH_ON_X 10
 
+
 struct Line {
 	int start, end;
 	Line(int s, int e) {
@@ -22,6 +24,15 @@ struct Line {
 		end = e;
 	}
 };
+
+template<class T>
+void draw(CImg<T> &srcImg, Line X, Line Y) {
+	const unsigned char blue[] = {0, 0, 255};
+	srcImg.draw_line(X.start, Y.start, X.end, Y.start, blue);
+	srcImg.draw_line(X.end, Y.start, X.end, Y.end, blue);
+	srcImg.draw_line(X.end, Y.end, X.start, Y.end, blue);
+	srcImg.draw_line(X.start, Y.end, X.start, Y.start, blue);
+}
 
 template<class T>
 class NumberReg {
@@ -54,6 +65,44 @@ CImg<T> NumberReg<T>::correct_paper(const CImg<T> &srcImg) {
 template<class T>
 vector<CImg<T> > NumberReg<T>::detect_number_area(CImg<T> &srcImg) {
 
+	ofstream fout("lines.txt");
+	int c = 0;
+
+
+	vector<Line> xLines = project_to_x(srcImg);
+	vector<Line> yLines = project_to_y(srcImg);
+	vector<CImg<T> > ret;
+	for (int i = 0; i < xLines.size(); i++) {
+		for (int j = 0; j < yLines.size(); j++) {
+			const unsigned char blue[] = {0, 0, 255};
+			// CImg<T> cropImg = srcImg.get_crop(xLines[i].start, yLines[i].start, 
+			// 	xLines[i].end, yLines[i].end);
+			// ret.push_back(srcImg.get_crop(xLines[i].start, yLines[i].start, 
+			// 	xLines[i].end, yLines[i].end));
+			// cropImg.display(to_string(i).c_str());
+			// ret.push_back(cropImg);
+			// srcImg.draw_rectangle(xLines[i].start, yLines[j].start, xLines[i].end,
+			// 	yLines[j].end, blue);
+			cout << "start==> (" << xLines[i].start << ", " << yLines[j].start << ")" << endl;
+			cout << "end==> (" << xLines[i].end << ", " << yLines[j].end << ")" << endl;
+			fout << "(" << i << ", " << j << ")" << endl;
+			fout << "start==> (" << xLines[i].start << ", " << yLines[j].start << ")" << endl;
+			fout << "end==> (" << xLines[i].end << ", " << yLines[j].end << ")" << endl;
+			draw(srcImg, xLines[i], yLines[j]);
+			srcImg.display(to_string(c++).c_str());
+			srcImg.save((to_string(c)+".png").c_str());
+
+		}
+	}
+
+    #ifdef NUMBER_REG_DEBUG
+    for (int i = 0; i < ret.size(); i++) {
+    	string name = to_string(i) + ".png";
+    	ret[i].save(name.c_str());
+    }
+    #endif
+
+	return ret;
 }
 
 template<class T>

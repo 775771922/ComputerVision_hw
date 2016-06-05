@@ -7,6 +7,8 @@ Ex6/src/train-labels.idx1-ubyte
 final project/*.jpg
 final project/*.pdf
 final project/src/*.jpg
+final project/src/*.png
+final project/src/*.txt
 final project/src/*.o
 final project/src/image1
 final project/src/image2
