@@ -1,5 +1,4 @@
 #include "paper_corection.h"
-#include "RotateOP.h"
 #include "global.h"
 #include "homography.h"
 #include "image_segmentation.h"
@@ -23,6 +22,15 @@ PaperCorection::PaperCorection(double r, int t, int p) {
     this->sigma = 1.5;
     this->winSize = 1;  
     this->firstDerWinSize = 1;
+}
+
+PaperCorection::PaperCorection(const PaperCorection& p) {
+    this->rate = p.rate;
+    this->errorTheta = p.errorTheta;
+    this->errorP = p.errorP;
+    this->sigma = p.sigma;
+    this->winSize = p.winSize;
+    this->firstDerWinSize = p.firstDerWinSize;
 }
 
 
@@ -433,8 +441,8 @@ CImg<float> PaperCorection::paper_corection(const CImg<float> &srcImg) {
     for (int i = 0; i < vertexs.size(); i++) {
         draw_point(temp, vertexs[i]);
     }
-    temp.display("temp");
-    temp.save("temp.png");
+    // temp.display("temp");
+    // temp.save("temp.png");
 
     // 试试在原图上二值化之后再腐蚀
     grayImg = imageSeg.segment_image(grayImg);
@@ -442,14 +450,18 @@ CImg<float> PaperCorection::paper_corection(const CImg<float> &srcImg) {
     CImg<float> wrapImg = image_wrap(vertexs, standard, erodeImg);
     CImg<float> clipImg = clip_img(wrapImg, standard);
 
+    clipImg = imageSeg.segment_image(clipImg);
+    clipImg.display("clipImg");
+    clipImg.save("clipImg.png");
+
+
+    cimg_forXY(clipImg, x, y) {
+        assert(clipImg(x, y, 0, 0) == 0 || clipImg(x, y, 0, 0) == 255);
+    }
+
 
     // CImg<float> wrapImg = image_wrap(vertexs, standard, srcImg);
     // CImg<float> clipImg = clip_img(wrapImg, standard);
-    // if (clipImg.width() > clipImg.height()) {
-    //     RotateOP ro;
-    //     double rotateAngle = 90*PI/180;
-    //     clipImg = ro.rotate(clipImg, rotateAngle);
-    // }
 
     #ifdef PAPER_CORECTION_DEBUG
 

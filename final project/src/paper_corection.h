@@ -8,7 +8,7 @@ using namespace std;
 #include "global.h"
 using namespace cimg_library;
 
-#define PAPER_CORECTION_DEBUG
+//#define PAPER_CORECTION_DEBUG
 
 class PaperCorection {
 private:
@@ -29,6 +29,7 @@ private:
 	int valueHeight(double srcY, int height);
 public:
 	PaperCorection(double r, int t, int p);
+	PaperCorection(const PaperCorection& p);
     // 对canny处理后的图片检测直线
 	vector<Position> detect_edge(const CImg<float> &houghSpace, const CImg<float> &srcImg,
 	            const CImg<float> &cannyImg);

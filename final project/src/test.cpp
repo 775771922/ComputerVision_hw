@@ -1,8 +1,6 @@
 #include "CImg.h"
-#include "gaussian.h"
-#include "canny.h"
-#include "hough.h"
 #include "paper_corection.h"
+#include "number_recognition.h"
 #include <vector>
 #include <cassert>
 using namespace cimg_library;
@@ -14,22 +12,17 @@ int main(int argc, char **argv) {
 	}
 	CImg<float> srcImg(argv[1]);
 
-	// Canny canny(1.5, 3, 3);
-	// CImg<float> cannyDetectImg = canny.detect_edge(srcImg);
- //    cannyDetectImg.save_jpeg("canny.jpg");
-	
-	// int width = cannyDetectImg.width();
-	// int height = cannyDetectImg.height();
-	// int diagonal = sqrt(width*width + height*height);
-
-	// HoughTransform hough(360, diagonal);
-	// hough.draw_hough_space(cannyDetectImg);
-
     double rate = 0.2;
     int errorTheta = 5, errorP = 50; //125;
-    PaperCorection dect(rate, errorTheta, errorP);
+    PaperCorection paperCorrection(rate, errorTheta, errorP);
+    NumberReg<float> numberReg(paperCorrection);
 
-    dect.paper_corection(srcImg);
+    //paperCorrection.paper_corection(srcImg);
+
+    //numberReg.correct_paper(srcImg);
+
+    numberReg.project_to_x(paperCorrection.paper_corection(srcImg));
+    //numberReg.project_to_y(paperCorrection.paper_corection(srcImg));
 
 
 }

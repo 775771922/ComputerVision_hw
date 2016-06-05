@@ -15,14 +15,11 @@ endif
 
 all: test
 
-test: global canny hough rotate_op paper_corection
+test: global canny hough paper_corection
 	$(CC) $(GG) $(CV) -o test test.cpp hough.o canny.o gaussian.o paper_corection.o global.o RotateOP.o
 
 paper_corection: CImg.h paper_corection.h paper_corection.cpp
 	$(CC) $(GG) -c paper_corection.cpp
-
-rotate_op: RotateOP.cpp
-	$(CC) $(GG) -c RotateOP.cpp 
 
 canny: CImg.h canny.h canny.cpp gaussian hough
 	$(CC) $(GG) -c canny.cpp 
