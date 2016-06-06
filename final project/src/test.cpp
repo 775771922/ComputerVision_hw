@@ -21,7 +21,10 @@ int main(int argc, char **argv) {
 
     //numberReg.project_to_x(paperCorrection.paper_corection(srcImg));
     //numberReg.project_to_y(paperCorrection.paper_corection(srcImg));
-    numberReg.detect_number_area(srcImg);
+    //numberReg.detect_number_area(srcImg);
+    //numberReg.test_project_to_x(srcImg);
+
+    numberReg.read_number_in(srcImg);
 
 }
 

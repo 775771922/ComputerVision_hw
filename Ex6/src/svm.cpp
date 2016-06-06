@@ -14,7 +14,7 @@ using namespace cv;
 using namespace std;
 
 
-const int ITERATIVE_COUNT = 2000;
+const int ITERATIVE_COUNT = 100;
 
 
 int reverseDigit(int i) {
@@ -122,6 +122,9 @@ vector<Mat> readTrainImages() {
 					img.at<uchar>(r, c) = temp;
 				}
 			}
+
+			string name = "Train/" + to_string(idx) + ".jpg";
+			imwrite(name, img);
 
 			img = img.reshape(0, 1);
 			trainingData.push_back(img);
@@ -259,6 +262,7 @@ vector<pair<int, int>> predict() {
 	vector<pair<Mat, int> > testingData = readTestSet();
 	CvSVM SVM;
 	string name = "svm-linear-kernel-" + to_string(ITERATIVE_COUNT);
+	//string name = "svm-train";
 	SVM.load(name.c_str()); 
 	ofstream fout("svm-res.txt", ios::app);
 	fout << name << endl;
