@@ -7,6 +7,12 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/ml/ml.hpp>
 
+#include <dirent.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <time.h>
+
 #include "CImg.h"
 #include "paper_corection.h"
 #include "image_segmentation.h"
@@ -62,6 +68,7 @@ public:
     vector<CImg<T> > get_imgs_from_lines(const CImg<T> &srcImg, vector<Line> &lines, bool isX);
     CImg<T> normalize_img(CImg<T> &srcImg);
     void test_project_to_x(const CImg<T> &srcImg);
+    void test_svm(string dirName);
 };
 
 template<class T>
@@ -121,8 +128,8 @@ vector<int> NumberReg<T>::read_number_in(const CImg<T> &srcImg) {
     		}
     	}
     	#ifdef NUMBER_REG_DEBUG
-    	string name = "test" + to_string(idx++) + ".png";
-    	imwrite(name.c_str(), img);
+    	// string name = "test" + to_string(idx++) + ".png";
+    	// imwrite(name.c_str(), img);
     	#endif
     	img = img.reshape(0, 1);
     	int prediction = svm.predict(img);
@@ -142,7 +149,6 @@ CImg<T> NumberReg<T>::correct_paper(const CImg<T> &srcImg) {
 template<class T>
 CImg<T> NumberReg<T>::normalize_img(CImg<T> &srcImg) {
     ImageSeg<T> imageSeg;
-    //srcImg = imageSeg.segment_image(srcImg);
     cimg_forXY(srcImg, x, y) {
     	srcImg(x, y, 0, 0) = 255 - srcImg(x, y, 0, 0);
     }
@@ -164,7 +170,7 @@ CImg<T> NumberReg<T>::normalize_img(CImg<T> &srcImg) {
 		}
 		#ifdef NUMBER_REG_DEBUG
 		//ret.display("ret");
-		ret.save(("normal" + to_string(c++) + ".png").c_str());
+		ret.save(("normal3/" + to_string(c++) + ".png").c_str());
 		#endif
 	} else {
 		scale = (double)srcImg.height() / TEST_IMAGE_SIZE;
@@ -177,7 +183,7 @@ CImg<T> NumberReg<T>::normalize_img(CImg<T> &srcImg) {
 		}
 		#ifdef NUMBER_REG_DEBUG
 		//ret.display("ret");
-		ret.save(("normal" + to_string(c++) + ".png").c_str());
+		ret.save(("normal3/" + to_string(c++) + ".png").c_str());
 		#endif
 	}
 
@@ -336,6 +342,68 @@ void NumberReg<T>::test_project_to_x(const CImg<T> &srcImg) {
 		string name = "test" + to_string(i) + ".png";
 		t.display(name.c_str());
 		t.save(name.c_str());
+	}
+}
+
+
+vector<string> get_files_from_dir(string dirName) {
+	DIR *dir;
+	struct dirent *dirp;
+	struct stat filestat;
+	vector<string> files;
+
+	dir = opendir(dirName.c_str());
+
+	if (dir == NULL) {
+		cout << "Directory " << dir << " not found!" << endl;
+		return files;
+	}
+
+	while ((dirp = readdir(dir))) {
+		string file_path = dirName;
+		if (dirName[dirName.length()-1] != '/') {
+			file_path += "/";
+		}
+		file_path += dirp->d_name;
+
+		if (stat(file_path.c_str(), &filestat)) {
+			continue;
+		}
+
+        string postfix[5] = {".bmp", ".jpg", ".jpeg", ".JPG", ".png"};
+		for (int i = 0; i < 5; i++) {
+			if (file_path.find(postfix[i]) != string::npos) {
+				files.push_back(file_path);
+			}
+		}
+	}
+
+	closedir(dir);
+	return files;
+}
+
+template<class T>
+void NumberReg<T>::test_svm(string dirName) {
+	ofstream fout("prediction.txt");
+	cout << "dir====>" << dirName << endl;
+	std::vector<string> v = get_files_from_dir(dirName);
+	cout << "size: " << v.size() << endl;
+	CvSVM svm;
+	svm.load("svm-linear-kernel-4500");
+	for (int i = 0; i < v.size(); i++) {
+		CImg<T> input(v[i].c_str());
+    	Mat img(TEST_IMAGE_SIZE, TEST_IMAGE_SIZE, CV_32F);
+    	for (int r = 0; r < TEST_IMAGE_SIZE; r++) {
+    		for (int c = 0; c < TEST_IMAGE_SIZE; c++) {
+    			img.at<float>(r, c) = input(c, r, 0, 0);
+    		}
+    	}
+    	img = img.reshape(0, 1);
+    	int prediction = svm.predict(img);
+    	//predictions.push_back(prediction);
+    	cout << v[i] << "    prediction=====>" << prediction << endl;
+    	fout << v[i] << "  " << i << ": " << prediction << endl;
+    	input.display();
 	}
 }
 
