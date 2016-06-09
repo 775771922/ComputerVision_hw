@@ -284,7 +284,7 @@ int main(int argc, char *argv[]) {
 	vector<int> testingLabels = readTestLabels();
 	vector<int> trainingLabels = readTrainingLabels();
 
-	for (weak_classifiers = 10; weak_classifiers <= 70; weak_classifiers += 10) {
+	for (weak_classifiers = 80; weak_classifiers <= 80; weak_classifiers += 10) {
 	    //weak_classifiers = 70;
 	    time_t start = clock();
 		train(trainingImages, trainingLabels);

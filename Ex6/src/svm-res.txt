@@ -19,3 +19,16 @@ Accuracy:65.82
 cost===>63.9715
 prediction====>0.38753
 
+svm-linear-kernel-100
+svm-linear-kernel-100
+9603
+Accuracy:96.03
+cost===>2e-06
+prediction====>5.87556
+
+svm-linear-kernel-200
+9689
+Accuracy:96.89
+cost===>416.526
+prediction====>6.16793
+

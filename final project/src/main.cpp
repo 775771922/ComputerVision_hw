@@ -14,7 +14,7 @@ int main(int argc, char **argv) {
 	}
 	//CImg<float> srcImg(argv[1]);
 
-    double rate = 0.2;
+    double rate = 0.1;
     int errorTheta = 5, errorP = 50; //125;
     PaperCorection paperCorrection(rate, errorTheta, errorP);
     NumberReg<float> numberReg(paperCorrection);

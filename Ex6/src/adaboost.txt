@@ -1,0 +1,5 @@
+weak_classifiers===>80
+8451
+Accuracy:84.51
+cost====>2479.83
+predict time===>69.1088

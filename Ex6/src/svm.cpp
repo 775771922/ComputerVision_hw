@@ -123,8 +123,8 @@ vector<Mat> readTrainImages() {
 				}
 			}
 
-			string name = "Train/" + to_string(idx) + ".jpg";
-			imwrite(name, img);
+			// string name = "Train/" + to_string(idx) + ".jpg";
+			// imwrite(name, img);
 
 			img = img.reshape(0, 1);
 			trainingData.push_back(img);

@@ -118,21 +118,23 @@ vector<int> NumberReg<T>::read_number_in(const CImg<T> &srcImg) {
 		normalizedImgs.push_back(normalize_img(numberAreas[i]));
 	}
 
+    HOGDescriptor hog(cvSize(28,28),cvSize(14,14),cvSize(1,1),cvSize(7,7),9);
+    Size winStride = Size(1, 1);
     CvSVM svm;
-    svm.load("svm-linear-kernel-4500");
+    svm.load("svm-linear-kernel-100");
     for (int i = 0; i < normalizedImgs.size(); i++) {
-    	Mat img(TEST_IMAGE_SIZE, TEST_IMAGE_SIZE, CV_32F);
-    	for (int r = 0; r < TEST_IMAGE_SIZE; r++) {
-    		for (int c = 0; c < TEST_IMAGE_SIZE; c++) {
-    			img.at<float>(r, c) = normalizedImgs[i](c, r, 0, 0);
-    		}
-    	}
-    	#ifdef NUMBER_REG_DEBUG
-    	// string name = "test" + to_string(idx++) + ".png";
-    	// imwrite(name.c_str(), img);
-    	#endif
-    	img = img.reshape(0, 1);
-    	int prediction = svm.predict(img);
+    	normalizedImgs[i].convertTo(normalizedImgs[i], CV_8UC1);
+
+    	vector<float> descriptors;
+    	hog.compute(normalizedImgs[i], descriptors, winStride);
+
+        Mat tmp;
+        tmp.create(1, descriptors.size(), CV_32FC1);
+        for (int j = 0; j < descriptors.size(); j++) {
+        	tmp.at<float>(0, j) = descriptors[j];
+        }
+
+    	int prediction = svm.predict(tmp);
     	predictions.push_back(prediction);
     	cout << "prediction=====>" << prediction << endl;
     	normalizedImgs[i].display();
@@ -388,23 +390,31 @@ void NumberReg<T>::test_svm(string dirName) {
 	cout << "dir====>" << dirName << endl;
 	std::vector<string> v = get_files_from_dir(dirName);
 	cout << "size: " << v.size() << endl;
-	CvSVM svm;
-	svm.load("svm-linear-kernel-4500");
-	for (int i = 0; i < v.size(); i++) {
-		CImg<T> input(v[i].c_str());
-    	Mat img(TEST_IMAGE_SIZE, TEST_IMAGE_SIZE, CV_32F);
-    	for (int r = 0; r < TEST_IMAGE_SIZE; r++) {
-    		for (int c = 0; c < TEST_IMAGE_SIZE; c++) {
-    			img.at<float>(r, c) = input(c, r, 0, 0);
-    		}
-    	}
-    	img = img.reshape(0, 1);
-    	int prediction = svm.predict(img);
-    	//predictions.push_back(prediction);
-    	cout << v[i] << "    prediction=====>" << prediction << endl;
-    	fout << v[i] << "  " << i << ": " << prediction << endl;
-    	input.display();
-	}
+
+    HOGDescriptor hog(cvSize(28,28),cvSize(14,14),cvSize(1,1),cvSize(7,7),9);
+    Size winStride = Size(1, 1);
+    CvSVM svm;
+    svm.load("svm-linear-kernel-300");
+    for (int i = 0; i < v.size(); i++) {
+    	Mat input = imread(v[i].c_str(), 1);
+    	CImg<T> img(v[i].c_str());
+    	input.convertTo(input, CV_8UC1);
+    	vector<float> descriptors;
+    	hog.compute(input, descriptors, winStride);
+
+        Mat tmp;
+        tmp.create(1, descriptors.size(), CV_32FC1);
+        for (int j = 0; j < descriptors.size(); j++) {
+        	tmp.at<float>(0, j) = descriptors[j];
+        }
+
+    	int prediction = svm.predict(tmp);
+    	cout << "prediction=====>" << prediction << endl;
+    	fout << v[i].c_str() << "===>" << prediction << endl;
+    	img.display();
+    }
+    fout.close();
+
 }
 
 

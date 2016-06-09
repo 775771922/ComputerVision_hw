@@ -33,8 +33,62 @@ PaperCorection::PaperCorection(const PaperCorection& p) {
     this->firstDerWinSize = p.firstDerWinSize;
 }
 
+vector<Position> PaperCorection::test_detect_edge(vector<Position> &pos, const CImg<float> &srcImg) {
+    assert(pos.size() >= 4);
 
-vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, const CImg<float> &srcImg, const CImg<float> &cannyImg) {
+    double thetaError = 15, verticalAngle = 90, disError = 100;
+    vector<Position> res;
+    // 默认投票数最高的点是正确的边缘
+    Position p1 = pos[0], p2;
+    res.push_back(p1);
+    // p2的下标
+    int p2Index = 0;
+    // 找到与p1垂直的直线p2
+    for (int i = 1; i < pos.size(); i++) {
+        if ((abs(p1.x-pos[i].x) <= thetaError || abs(abs(p1.x-pos[i].x)-360) <= thetaError)) {
+            continue;
+        }
+        if ((abs(p1.x-pos[i].x) >= 90-thetaError && abs(p1.x-pos[i].x) <= 90+thetaError) ||
+            (abs(abs(p1.x-pos[i].x)-180) >= 90-thetaError && abs(abs(p1.x-pos[i].x)-180) <= 90+thetaError)) {
+            p2 = pos[i];
+            p2Index = i;
+            break;
+        }
+    }
+    for (int i = 1; i < pos.size(); i++) {
+        if ((abs(p1.x-pos[i].x) <= thetaError || abs(abs(p1.x-pos[i].x)-180) <= thetaError)) {
+            res.push_back(pos[i]);
+            break;
+        }
+    }
+    res.push_back(p2);
+    for (int i = 1; i < pos.size(); i++) {
+        if (i != p2Index && (abs(p2.x-pos[i].x) <= thetaError || abs(abs(p2.x-pos[i].x)-180) <= thetaError) &&
+            (abs(p2.y-pos[i].y) > disError)) {
+            res.push_back(pos[i]);
+            break;
+        }
+    }
+
+    #ifdef PAPER_CORECTION_DEBUG
+    ofstream fout("set.txt", ofstream::app);
+    fout << endl;
+    CImg<float> temp(srcImg);
+    for (int i = 0; i < res.size(); i++) {
+        cout << res[i].x << " " << res[i].y << " " << res[i].sum << endl;
+        fout << res[i].x << " " << res[i].y << " " << res[i].sum << endl;
+        draw_result(temp, res[i].x, res[i].y, 0);
+        temp.display();
+    }
+    temp.save("standard_edge.png");
+    fout.close();
+    #endif
+
+    return res;
+}
+
+
+vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, const CImg<float> &srcImg) {
     vector<Position> v;
     for (int i = 0; i < houghSpace.width(); i++) {
         for (int j = 0; j < houghSpace.height(); j++) {
@@ -100,20 +154,23 @@ vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, cons
     }
 
     #ifdef PAPER_CORECTION_DEBUG
-    // cout << "pos.size()=====>" << pos.size() << endl;
-    // ofstream fout("set.txt");
-    // CImg<float> temp(srcImg);
-    // for (int i = 0; i < pos.size(); i++) {
-    //     cout << pos[i].x << " " << pos[i].y << " " << pos[i].sum << endl;
-    //     fout << pos[i].x << " " << pos[i].y << " " << pos[i].sum << endl;
-    //     draw_result(temp, pos[i].x, pos[i].y, 0);
-    //     temp.display();
-    // }
-    // temp.save("edge.png");
-    // fout.close();
+    cout << "pos.size()=====>" << pos.size() << endl;
+    ofstream fout("set.txt");
+    CImg<float> temp(srcImg);
+    for (int i = 0; i < pos.size(); i++) {
+        cout << pos[i].x << " " << pos[i].y << " " << pos[i].sum << endl;
+        fout << pos[i].x << " " << pos[i].y << " " << pos[i].sum << endl;
+        draw_result(temp, pos[i].x, pos[i].y, 0);
+        temp.display();
+    }
+    temp.save("edge.png");
+    fout.close();
     #endif
 
-    return detect_edge(pos);
+    return test_detect_edge(pos, srcImg);
+
+
+    //return detect_edge(pos);
 }
 
 vector<Position> PaperCorection::detect_edge(vector<Position> &pos) {
@@ -152,12 +209,6 @@ vector<Position> PaperCorection::detect_edge(vector<Position> &pos) {
             break;
         }
     }
-
-    cout << endl << endl;
-    for (int i = 0; i < res.size(); i++) {
-        cout << "(" << res[i].x << "," << res[i].y << ")\n";
-    }
-    cout << endl;
 
     return res;
 }
@@ -420,6 +471,7 @@ CImg<float> PaperCorection::paper_corection(const CImg<float> &srcImg) {
 
     xyz::Canny canny(sigma, winSize, firstDerWinSize);
     CImg<float> cannyImg = canny.detect_edge(erodeImg);
+    //cannyImg = cannyImg.get_dilate(mask);
 
     #ifdef PAPER_CORECTION_DEBUG
     cannyImg.display("canny");
@@ -433,16 +485,16 @@ CImg<float> PaperCorection::paper_corection(const CImg<float> &srcImg) {
     HoughTransform hough(360, diagonal);
     hough.draw_hough_space(cannyImg);
 
-    vector<Position> pos = detect_edge(hough.get_hough_space(), srcImg, cannyImg);
+    vector<Position> pos = detect_edge(hough.get_hough_space(), srcImg);
     vector<Position> vertexs = get_vertexs(pos);
     vector<Position> standard = get_standard_vertexs(vertexs, srcImg.width(), srcImg.height()); 
 
     CImg<float> temp(srcImg);
     for (int i = 0; i < vertexs.size(); i++) {
         draw_point(temp, vertexs[i]);
+        temp.display("temp");
     }
-    // temp.display("temp");
-    // temp.save("temp.png");
+    temp.save("temp.png");
 
     // 试试在原图上二值化之后再腐蚀
     grayImg = imageSeg.segment_image(grayImg);
@@ -451,9 +503,6 @@ CImg<float> PaperCorection::paper_corection(const CImg<float> &srcImg) {
     CImg<float> clipImg = clip_img(wrapImg, standard);
 
     clipImg = imageSeg.segment_image(clipImg);
-    clipImg.display("clipImg");
-    clipImg.save("clipImg.png");
-
 
     cimg_forXY(clipImg, x, y) {
         assert(clipImg(x, y, 0, 0) == 0 || clipImg(x, y, 0, 0) == 255);
@@ -490,7 +539,7 @@ void PaperCorection::draw_result(CImg<float> &img, int theta, int p, int channel
     for (int i = 0; i < width; i++) {
         for (int j = 0; j < height; j++) {
             double temp_p = (double)i * cos(PI*(double)theta/180) + (double)j * sin(PI*(double)theta/180);
-            if (p >= temp_p-3 && p <= temp_p+3) {
+            if (p >= temp_p-1 && p <= temp_p+1) {
                 img(i, j, 0, channel) = 0xff;
             }
         }
