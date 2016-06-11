@@ -3,3 +3,13 @@ weak_classifiers===>80
 Accuracy:84.51
 cost====>2479.83
 predict time===>69.1088
+weak_classifiers===>10
+8967
+Accuracy:89.67
+cost====>6531.43
+predict time===>41.601
+weak_classifiers===>40
+9560
+Accuracy:95.6
+cost====>29384.7
+predict time===>57.9851

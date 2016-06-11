@@ -30,6 +30,7 @@ private:
 
 	vector<Position> test_detect_edge(vector<Position> &pos, const CImg<float> &srcImg);
 public:
+	PaperCorection();
 	PaperCorection(double r, int t, int p);
 	PaperCorection(const PaperCorection& p);
     // 对canny处理后的图片检测直线

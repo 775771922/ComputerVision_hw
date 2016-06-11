@@ -14,10 +14,35 @@
 
 using namespace std;
 
+PaperCorection::PaperCorection() {
+    ifstream fin("config.txt");
+    string type;
+    double number;
+    while (fin >> type >> number) {
+        if (type == "PAPER_CORRECT_RATE") {
+            this->rate = number;
+            cout << "rate====>" << rate << endl;
+        } else if (type == "PAPER_CORRECT_ERROR_THETA") {
+            this->errorTheta = number;
+            cout << "errorTheta====>" << errorTheta << endl;
+        } else if (type == "PAPER_CORRECT_ERROR_P") {
+            this->errorP = number;
+            cout << "errorP====>" << errorP << endl;
+        } else {
+            continue;
+        }
+    }
+    fin.close();
+    // params for canny
+    this->sigma = 1.5;
+    this->winSize = 1;  
+    this->firstDerWinSize = 1;
+}
+
 PaperCorection::PaperCorection(double r, int t, int p) {
-	this->rate = r;
-	this->errorTheta = t;
-	this->errorP = p;
+    this->rate = r;
+    this->errorTheta = t;
+    this->errorP = p;
     // params for canny
     this->sigma = 1.5;
     this->winSize = 1;  
@@ -110,7 +135,16 @@ vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, cons
     }
 
     #ifdef PAPER_CORECTION_DEBUG
+    CImg<float> ori(srcImg);
     cout << "v.size()===>" << v.size() << endl;
+    for (int i = 0; i < v.size(); i++) {
+        cout << i << "===>" << "(" << v[i].x << ", " << v[i].y << ")" << endl;
+        draw_result(ori, v[i].x, v[i].y, 0);
+        ori.display();
+    }
+    cout << endl;
+    ori.save("ori.png");
+
     #endif
 
     // 对hough空间中剩余的点按照误差值进行聚类，聚类后的点放在cluster里面
@@ -161,8 +195,9 @@ vector<Position> PaperCorection::detect_edge(const CImg<float> &houghSpace, cons
         cout << pos[i].x << " " << pos[i].y << " " << pos[i].sum << endl;
         fout << pos[i].x << " " << pos[i].y << " " << pos[i].sum << endl;
         draw_result(temp, pos[i].x, pos[i].y, 0);
-        temp.display();
+        //temp.display();
     }
+    temp.display();
     temp.save("edge.png");
     fout.close();
     #endif
@@ -452,7 +487,7 @@ CImg<float> PaperCorection::paper_corection(const CImg<float> &srcImg) {
     grayImg.display("grayImg");
 
     ImageSeg<float> imageSeg;
-    CImg<float> mask(3, 3, 1, 1, 255);
+    CImg<float> mask(5, 5, 1, 1, 255);
 
     #ifdef PAPER_CORECTION_DEBUG
     CImg<float> segImg = imageSeg.segment_image(grayImg);
@@ -494,7 +529,7 @@ CImg<float> PaperCorection::paper_corection(const CImg<float> &srcImg) {
         draw_point(temp, vertexs[i]);
         temp.display("temp");
     }
-    temp.save("temp.png");
+    //temp.save("temp.png");
 
     // 试试在原图上二值化之后再腐蚀
     grayImg = imageSeg.segment_image(grayImg);

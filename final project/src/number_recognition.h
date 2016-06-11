@@ -69,6 +69,7 @@ public:
     CImg<T> normalize_img(CImg<T> &srcImg);
     void test_project_to_x(const CImg<T> &srcImg);
     void test_svm(string dirName);
+    void test_adaboost(string dirName);
 };
 
 template<class T>
@@ -90,8 +91,7 @@ NumberReg<T>::NumberReg(PaperCorection p): paperCorection(p) {
 			MIN_LENGTH_ON_X = number;
 			cout << "MIN_LENGTH_ON_X===>" << MIN_LENGTH_ON_X << endl;
 		} else {
-			cout << "read config error" << endl;
-			exit(0);
+			continue;
 		}
 	}
 	fin.close();
@@ -411,6 +411,51 @@ void NumberReg<T>::test_svm(string dirName) {
     	int prediction = svm.predict(tmp);
     	cout << "prediction=====>" << prediction << endl;
     	fout << v[i].c_str() << "===>" << prediction << endl;
+    	img.display();
+    }
+    fout.close();
+
+}
+
+template<class T>
+void NumberReg<T>::test_adaboost(string dirName) {
+	ofstream fout("prediction.txt");
+	cout << "dir====>" << dirName << endl;
+	std::vector<string> v = get_files_from_dir(dirName);
+	cout << "size: " << v.size() << endl;
+
+    HOGDescriptor hog(cvSize(28,28),cvSize(14,14),cvSize(1,1),cvSize(7,7),9);
+    Size winStride = Size(1, 1);
+    CvBoost boost;
+    for (int i = 0; i < v.size(); i++) {
+    	Mat input = imread(v[i].c_str(), 1);
+    	CImg<T> img(v[i].c_str());
+    	input.convertTo(input, CV_8UC1);
+    	vector<float> descriptors;
+    	hog.compute(input, descriptors, winStride);
+
+    	Mat tmp;
+    	tmp.create(1, descriptors.size(), CV_32FC1);
+    	for (int j = 0; j < descriptors.size(); j++) {
+    		tmp.at<float>(0, j) = descriptors[j];
+    	}
+
+    	double prediction = 0;
+    	int predictionNum = 0;
+
+    	for (int j = 0; j < 10; j++) {
+    		string name = "train-boost-classifiers-10-class-" + to_string(j);
+    		boost.load(name.c_str());
+    		double tempPrediction = boost.predict(tmp);
+    		cout << "predict " << j << ": " << tempPrediction << endl;
+    		if (tempPrediction > prediction) {
+    			prediction = tempPrediction;
+    			predictionNum = j;
+    		}
+    	}
+
+    	cout << "prediction=====>" << predictionNum << endl;
+    	fout << v[i].c_str() << "===>" << predictionNum << endl;
     	img.display();
     }
     fout.close();

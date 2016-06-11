@@ -12,14 +12,14 @@ int main(int argc, char **argv) {
 	if (argc == 1) {
 		return 0;
 	}
-	//CImg<float> srcImg(argv[1]);
+	CImg<float> srcImg(argv[1]);
 
-    double rate = 0.1;
-    int errorTheta = 5, errorP = 50; //125;
-    PaperCorection paperCorrection(rate, errorTheta, errorP);
+    // double rate = 0.2;
+    // int errorTheta = 5, errorP = 50; //125;
+    PaperCorection paperCorrection;
     NumberReg<float> numberReg(paperCorrection);
 
-    //paperCorrection.paper_corection(srcImg);
+    paperCorrection.paper_corection(srcImg);
 
     //numberReg.project_to_x(paperCorrection.paper_corection(srcImg));
     //numberReg.project_to_y(paperCorrection.paper_corection(srcImg));
@@ -27,7 +27,8 @@ int main(int argc, char **argv) {
     //numberReg.test_project_to_x(srcImg);
 
     //numberReg.read_number_in(srcImg);
-    numberReg.test_svm(argv[1]);
+    //numberReg.test_svm(argv[1]);
+    //numberReg.test_adaboost(argv[1]);
 
 }
 
