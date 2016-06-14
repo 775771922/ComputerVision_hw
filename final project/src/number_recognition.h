@@ -28,8 +28,6 @@ using namespace cimg_library;
 
 #define TEST_IMAGE_SIZE 28
 
-int c = 0;
-
 struct Line {
 	int start, end;
 	Line(int s, int e) {
@@ -39,20 +37,11 @@ struct Line {
 };
 
 template<class T>
-void draw(CImg<T> &srcImg, Line X, Line Y) {
-	const unsigned char blue[] = {0, 0, 255};
-	srcImg.draw_line(X.start, Y.start, X.end, Y.start, blue);
-	srcImg.draw_line(X.end, Y.start, X.end, Y.end, blue);
-	srcImg.draw_line(X.end, Y.end, X.start, Y.end, blue);
-	srcImg.draw_line(X.start, Y.end, X.start, Y.start, blue);
-}
-
-template<class T>
 class NumberReg {
 public:
-	vector<int> read_number_in(const CImg<T> &srcImg);
+	void read_number_in(const CImg<T> &srcImg);
 	NumberReg(PaperCorection p);
-//private:
+private:
 	int MIN_PIXEL_ON_Y;
 	int MIN_PIXEL_ON_X;
 	int MIN_LENGTH_ON_Y;
@@ -61,12 +50,12 @@ public:
 	PaperCorection paperCorection;
 	CImg<T> correct_paper(const CImg<T> &srcImg);
     vector<CImg<T> > detect_number_area(const CImg<T> &srcImg);
-    bool check_number_image(CImg<T> &target);
     vector<int> project_to_y(const CImg<T> &srcImg);
     vector<int> project_to_x(const CImg<T> &srcImg);
     vector<Line> get_lines_from_hist(vector<int> &hist, int minPixel, int minLength);
     vector<CImg<T> > get_imgs_from_lines(const CImg<T> &srcImg, vector<Line> &lines, bool isX);
     CImg<T> normalize_img(CImg<T> &srcImg);
+    Mat cimg_to_mat(CImg<T> &img);
     void test_project_to_x(const CImg<T> &srcImg);
     void test_svm(string dirName);
     void test_adaboost(string dirName);
@@ -97,36 +86,31 @@ NumberReg<T>::NumberReg(PaperCorection p): paperCorection(p) {
 	fin.close();
 }
 
-// template<class T>
-// vector<int> NumberReg<T>::read_number_in(const CImg<T> &srcImg) {
-// 	CImg<T> correctionPaper = correct_paper(srcImg);
-// 	vector<CImg<T> > numberAreas = detect_number_area(correctionPaper);
-
-// 	for (int i = 0; i < numberAreas.size(); i++) {
-// 		normalize_img(numberAreas[i]);
-// 	}
-// }
-
 template<class T>
-vector<int> NumberReg<T>::read_number_in(const CImg<T> &srcImg) {
-	int idx = 0;
-	//CImg<T> correctionPaper = correct_paper(srcImg);
-	vector<int> predictions;
-	vector<CImg<T> > numberAreas = detect_number_area(srcImg);
+void NumberReg<T>::read_number_in(const CImg<T> &srcImg) {
+	system("mkdir ../images");
+	CImg<T> correctionPaper = correct_paper(srcImg);
+	vector<CImg<T> > numberAreas = detect_number_area(correctionPaper);
 	vector<CImg<T> > normalizedImgs;
 	for (int i = 0; i < numberAreas.size(); i++) {
 		normalizedImgs.push_back(normalize_img(numberAreas[i]));
 	}
 
+	for (int i = 0; i < normalizedImgs.size(); i++) {
+		string name = "../images/" + to_string(i) + ".jpg";
+		normalizedImgs[i].save(name.c_str());
+	}
+
+	ofstream fout("../images/prediction.txt");
+
     HOGDescriptor hog(cvSize(28,28),cvSize(14,14),cvSize(1,1),cvSize(7,7),9);
     Size winStride = Size(1, 1);
     CvSVM svm;
-    svm.load("svm-linear-kernel-100");
+    svm.load("svm-linear-kernel");
     for (int i = 0; i < normalizedImgs.size(); i++) {
-    	normalizedImgs[i].convertTo(normalizedImgs[i], CV_8UC1);
-
+    	Mat input = cimg_to_mat(normalizedImgs[i]);
     	vector<float> descriptors;
-    	hog.compute(normalizedImgs[i], descriptors, winStride);
+    	hog.compute(input, descriptors, winStride);
 
         Mat tmp;
         tmp.create(1, descriptors.size(), CV_32FC1);
@@ -135,12 +119,20 @@ vector<int> NumberReg<T>::read_number_in(const CImg<T> &srcImg) {
         }
 
     	int prediction = svm.predict(tmp);
-    	predictions.push_back(prediction);
-    	cout << "prediction=====>" << prediction << endl;
-    	normalizedImgs[i].display();
+    	fout << to_string(i) << ".jpg===>" << prediction << endl;
     }
+    fout.close();
 
-    return predictions;
+}
+
+template<class T>
+Mat NumberReg<T>::cimg_to_mat(CImg<T> &img) {
+	int width = img.width(), height = img.height();
+	Mat ret(width, height, CV_8UC1);
+	cimg_forXY(img, x, y) {
+		ret.at<uchar>(y, x) = img(x, y, 0, 0);
+	}
+	return ret;
 }
 
 template<class T>
@@ -155,10 +147,6 @@ CImg<T> NumberReg<T>::normalize_img(CImg<T> &srcImg) {
     	srcImg(x, y, 0, 0) = 255 - srcImg(x, y, 0, 0);
     }
 
-    #ifdef NUMBER_REG_DEBUG
-    //srcImg.display("normalize_img");
-    #endif
-
 	CImg<T> temp, ret(TEST_IMAGE_SIZE, TEST_IMAGE_SIZE, 1, 1, 0);
 	double scale;
 	if (srcImg.width() > srcImg.height()) {
@@ -170,10 +158,6 @@ CImg<T> NumberReg<T>::normalize_img(CImg<T> &srcImg) {
 				ret(row, col, 0, 0) = temp(row, h, 0, 0);
 			}
 		}
-		#ifdef NUMBER_REG_DEBUG
-		//ret.display("ret");
-		ret.save(("normal3/" + to_string(c++) + ".png").c_str());
-		#endif
 	} else {
 		scale = (double)srcImg.height() / TEST_IMAGE_SIZE;
 		temp = srcImg.get_resize((int)(srcImg.width() / scale), TEST_IMAGE_SIZE, 1, 1, 3);
@@ -183,10 +167,6 @@ CImg<T> NumberReg<T>::normalize_img(CImg<T> &srcImg) {
 				ret(row, col, 0, 0) = temp(w, col, 0, 0);
 			}
 		}
-		#ifdef NUMBER_REG_DEBUG
-		//ret.display("ret");
-		ret.save(("normal3/" + to_string(c++) + ".png").c_str());
-		#endif
 	}
 
 	return ret;
@@ -204,25 +184,18 @@ vector<CImg<T> > NumberReg<T>::detect_number_area(const CImg<T> &srcImg) {
     vector<CImg<T> > ret;
     const unsigned char blue[] = {0, 0, 255};
 	for (int i = 0; i < yImgs.size(); i++) {
+		yImgs[i].save(("../images/line"+to_string(i)+".png").c_str());
 		vector<int> histX = project_to_x(yImgs[i]);
 		vector<Line> xLines = get_lines_from_hist(histX, MIN_PIXEL_ON_X, MIN_LENGTH_ON_X);
 		for (int j = 0; j < xLines.size(); j++) {
-
 			CImg<T> cropImg = yImgs[i].get_crop(xLines[j].start, 0, xLines[j].end, yImgs[i].height()-1);
 			ret.push_back(cropImg);
 
-			#ifdef NUMBER_REG_DEBUG
-
-			cropImg.save(("cropImg" + to_string(c) + ".png").c_str());
-
 			yImgs[i].draw_line(xLines[j].start, 0, xLines[j].start, yImgs[i].height()-1, blue);
 			yImgs[i].draw_line(xLines[j].end, 0, xLines[j].end, yImgs[i].height()-1, blue);
-			yImgs[i].display((to_string(c++)+".png").c_str());
-			yImgs[i].save((to_string(c)+".png").c_str());
-
-			//cropImg.display(("cropImg" + to_string(c)).c_str());
-			#endif
 		}
+		//yImgs[i].display(("../images/cut"+to_string(i)+".png").c_str());
+		yImgs[i].save(("../images/cut"+to_string(i)+".png").c_str());
 	}
 
 	return ret;
@@ -240,13 +213,6 @@ vector<int> NumberReg<T>::project_to_x(const CImg<T> &srcImg) {
 		} 
 		histX[x] = sum;
 	}
-
-	#ifdef NUMBER_REG_DEBUG
-	// for (int i = 0; i < histX.size(); i++) {
-	// 	cout << i << ": " << histX[i] << endl;
-	// }
-	// cout << endl;
-	#endif
 
 	return histX;
 
@@ -299,19 +265,6 @@ vector<Line> NumberReg<T>::get_lines_from_hist(vector<int> &hist, int minPixel, 
     		}
     	}
     }
-
-    #ifdef NUMBER_REG_DEBUG
-    cout << "index" << endl;
-    for (int i = 0; i < minPixelIndex.size(); i++) {
-    	cout << minPixelIndex[i] << "======>" << hist[minPixelIndex[i]] << endl;
-    }
-    cout << endl << endl << "line" << endl;
-    for (int i = 0; i < lines.size(); i++) {
-    	cout << "(" << lines[i].start << ", " << lines[i].end << ")" << endl;
-    }
-    #endif
-
-
     return lines;
 }
 
@@ -321,30 +274,13 @@ vector<CImg<T> > NumberReg<T>::get_imgs_from_lines(const CImg<T> &srcImg, vector
 	if (isX) {
 		for (int i = 0; i < lines.size(); i++) {
 			ret.push_back(srcImg.get_crop(lines[i].start, 0, lines[i].end, srcImg.height()));
-			//ret[i].display(("ret" + to_string(i)).c_str());
 		}
 	} else {
 		for (int i = 0; i < lines.size(); i++) {
 			ret.push_back(srcImg.get_crop(0, lines[i].start, srcImg.width(), lines[i].end));
-			//ret[i].display(("ret" + to_string(i)).c_str());
-			ret[i].save(("ret" + to_string(i) + ".png").c_str());
 		}
 	}
 	return ret;
-}
-
-template<class T>
-void NumberReg<T>::test_project_to_x(const CImg<T> &srcImg) {
-	CImg<T> t(srcImg);
-	vector<Line> xLines = project_to_x(srcImg);
-	for (int i = 0; i < xLines.size(); i++) {
-		const unsigned char blue[] = {0, 0, 255};
-		t.draw_line(xLines[i].start, 0, xLines[i].start, t.height(), blue);
-		t.draw_line(xLines[i].end, 0, xLines[i].end, t.height(), blue);
-		string name = "test" + to_string(i) + ".png";
-		t.display(name.c_str());
-		t.save(name.c_str());
-	}
 }
 
 
@@ -444,7 +380,7 @@ void NumberReg<T>::test_adaboost(string dirName) {
     	int predictionNum = 0;
 
     	for (int j = 0; j < 10; j++) {
-    		string name = "train-boost-classifiers-10-class-" + to_string(j);
+    		string name = "train-boost-classifiers-40-class-" + to_string(j);
     		boost.load(name.c_str());
     		double tempPrediction = boost.predict(tmp);
     		cout << "predict " << j << ": " << tempPrediction << endl;

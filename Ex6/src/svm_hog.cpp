@@ -16,7 +16,7 @@ using namespace cv::gpu;
 using namespace std;
 
 
-const int ITERATIVE_COUNT = 300;
+const int ITERATIVE_COUNT = 400;
 
 
 int reverseDigit(int i) {

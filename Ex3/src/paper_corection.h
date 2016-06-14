@@ -15,6 +15,8 @@ private:
 	double rate;
     // 聚类时角度和距离的误差值，单独分两个误差是因为考虑到角度的变化比距离的变化更敏感
 	int errorTheta, errorP;
+	// 寻找直线时，根据垂直的角度以及相距的距离做取舍
+	int thetaError, disError;
 	void draw_line(CImg<float> &img, int theta, int p);
     void print_map(multimap<int, Position> &cluster);
     void draw_result(CImg<float> &img, int theta, int p, int channel);

@@ -15,6 +15,8 @@ private:
 	double rate;
     // 聚类时角度和距离的误差值，单独分两个误差是因为考虑到角度的变化比距离的变化更敏感
 	int errorTheta, errorP;
+	// 检测相互垂直的边缘直线时采用的误差范围
+	double thetaError, disError;
 	float sigma;
 	int winSize; 
 	int firstDerWinSize;

@@ -17,7 +17,7 @@ endif
 all: test
 
 test: global canny hough paper_corection
-	$(CC) $(CIMG) $(CV) -o main main.cpp hough.o canny.o gaussian.o paper_corection.o global.o RotateOP.o
+	$(CC) $(CIMG) $(CV) -o main main.cpp hough.o canny.o gaussian.o paper_corection.o global.o
 
 paper_corection: CImg.h paper_corection.h paper_corection.cpp
 	$(CC) $(GG) -c paper_corection.cpp

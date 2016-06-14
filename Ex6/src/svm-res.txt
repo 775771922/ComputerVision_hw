@@ -38,3 +38,9 @@ Accuracy:98.33
 cost===>434.291
 prediction====>6.1644
 
+svm-linear-kernel-400
+9814
+Accuracy:98.14
+cost===>470.45
+prediction====>6.10661
+

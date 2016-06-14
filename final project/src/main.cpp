@@ -3,6 +3,8 @@
 #include "number_recognition.h"
 #include <vector>
 #include <cassert>
+#include <time.h>
+#include <cstdio>
 #include <iostream>
 using namespace cimg_library;
 using namespace std;
@@ -14,21 +16,18 @@ int main(int argc, char **argv) {
 	}
 	CImg<float> srcImg(argv[1]);
 
-    // double rate = 0.2;
-    // int errorTheta = 5, errorP = 50; //125;
     PaperCorection paperCorrection;
     NumberReg<float> numberReg(paperCorrection);
 
-    paperCorrection.paper_corection(srcImg);
+    time_t start, end;
+    start = clock();
 
-    //numberReg.project_to_x(paperCorrection.paper_corection(srcImg));
-    //numberReg.project_to_y(paperCorrection.paper_corection(srcImg));
-    //numberReg.detect_number_area(srcImg);
-    //numberReg.test_project_to_x(srcImg);
+    numberReg.read_number_in(srcImg);
 
-    //numberReg.read_number_in(srcImg);
-    //numberReg.test_svm(argv[1]);
-    //numberReg.test_adaboost(argv[1]);
+    end = clock();
+    printf("the running time is : %f\n", double(end-start)/CLOCKS_PER_SEC);
+
+
 
 }
 

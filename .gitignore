@@ -5,6 +5,8 @@ Ex6/src/t10k-labels.idx1-ubyte
 Ex6/src/train-images.idx3-ubyte
 Ex6/src/train-labels.idx1-ubyte
 Ex6/src/Train
+Ex6/src/boost model
+Ex6/src/svm model
 final project/*.jpg
 final project/*.pdf
 final project/src/*.jpg
